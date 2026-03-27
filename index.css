@@ -271,6 +271,17 @@ nav#sidebar.hidden { display: none; }
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex: 1; /* Permite ocupar o espaço possível sem estourar */
+    min-width: 0; /* Previne flex-box blowout nas fontes longas */
+    margin-right: 0.5rem;
+}
+
+#display-username {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.9rem;
+    cursor: default;
 }
 
 .avatar {
@@ -283,6 +294,7 @@ nav#sidebar.hidden { display: none; }
     justify-content: center;
     color: var(--accent-color);
     font-size: 1.2rem;
+    flex-shrink: 0; /* Evita que o avatar seja esmagado */
 }
 
 #logout-btn {
