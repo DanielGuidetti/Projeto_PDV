@@ -15,17 +15,17 @@ try {
     });
 } catch(e) {}
 
-const _supabase = supabase.createClient('https://vbjtdgjdyducsfzrvsxn.supabase.co', 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw', {
+/*const _supabase = supabase.createClient('https://vbjtdgjdyducsfzrvsxn.supabase.co', 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw', {
     auth: {
         storageKey: 'mercearia_auth_session' // HOMOLOGAÇÃO
     }
-});
+});*/
 
-/*const _supabase = supabase.createClient('https://ljuonnxlpwrrpoiezwyk.supabase.co', 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK', {
+const _supabase = supabase.createClient('https://ljuonnxlpwrrpoiezwyk.supabase.co', 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK', {
     auth: {
         storageKey: 'mercearia_auth_session' // PRODUÇÃO
     }
-});*/
+});
 
 /* ===== DOM Elements ===== */
 const app = {
