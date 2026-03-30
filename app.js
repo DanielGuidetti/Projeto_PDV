@@ -15,17 +15,17 @@ try {
     });
 } catch(e) {}
 
-/*const _supabase = supabase.createClient('https://vbjtdgjdyducsfzrvsxn.supabase.co', 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw', {
+const _supabase = supabase.createClient('https://vbjtdgjdyducsfzrvsxn.supabase.co', 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw', {
     auth: {
         storageKey: 'mercearia_auth_session' // HOMOLOGAÇÃO
     }
-});*/
+});
 
-const _supabase = supabase.createClient('https://ljuonnxlpwrrpoiezwyk.supabase.co', 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK', {
+/*const _supabase = supabase.createClient('https://ljuonnxlpwrrpoiezwyk.supabase.co', 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK', {
     auth: {
         storageKey: 'mercearia_auth_session' // PRODUÇÃO
     }
-});
+});*/
 
 /* ===== DOM Elements ===== */
 const app = {
@@ -200,10 +200,26 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
         const { data, error } = await _supabase.from('produtos').insert([newProduct]).select();
         if (error) throw error;
 
+        let savedProduct = newProduct;
         if (data && data.length > 0) {
-            state.products.push(data[0]);
+            savedProduct = data[0];
+            state.products.push(savedProduct);
         } else {
-            state.products.push(newProduct);
+            state.products.push(savedProduct);
+        }
+
+        if (savedProduct.id && savedProduct.estoque > 0) {
+            const newMov = {
+                produto_id: savedProduct.id,
+                tipo: 'ENTRADA',
+                quantidade: savedProduct.estoque,
+                motivo: 'Estoque Inicial (Cadastro)'
+            };
+            const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
+            if (!movError && movData && movData.length > 0) {
+                state.movimentacoes.push(movData[0]);
+                if (typeof renderStockHistory === 'function') renderStockHistory();
+            }
         }
         
         productModal.classList.remove('active');
@@ -270,6 +286,38 @@ const renderPosCatalog = (searchTerm = '') => {
 };
 
 document.getElementById('pos-search').addEventListener('input', (e) => renderPosCatalog(e.target.value));
+
+// Suporte ao Leitor de Código de Barras (Enter)
+document.getElementById('pos-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const val = e.target.value.trim();
+        if (!val) return;
+        
+        // Busca produto pelo PLU exato (prioridade para leitor)
+        const product = state.products.find(p => p.PLU === val);
+        
+        if (product) {
+            addToCart(product);
+            e.target.value = '';
+            renderPosCatalog('');
+        } else {
+            // Se não encontrar por PLU exato, mas houver apenas um resultado filtrado, adiciona ele
+            const filtered = state.products.filter(p => {
+                const term = val.toLowerCase();
+                return p.nome.toLowerCase().includes(term) || p.PLU.includes(term);
+            });
+
+            if (filtered.length === 1) {
+                addToCart(filtered[0]);
+                e.target.value = '';
+                renderPosCatalog('');
+            } else {
+                showToast('Produto não encontrado pelo código.', 'error');
+            }
+        }
+    }
+});
+
 document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.getElementById('screen-pos').classList.contains('active')) {
         e.preventDefault();
@@ -422,19 +470,32 @@ const completeCheckout = async (method) => {
         const { data: saleData, error: saleError } = await _supabase.from('vendas').insert([sale]).select();
         if (saleError) throw saleError;
 
-        // Deduct Stock
+        const registeredSale = saleData && saleData.length > 0 ? saleData[0] : sale;
+
+        // Deduct Stock and Record Movement
         for (let cartItem of state.cart) {
             const product = state.products.find(p => p.id === cartItem.product.id);
             if (product) {
                 const newStock = product.estoque - cartItem.qty;
                 await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                
+                // Registra a movimentação de saída vinculada à venda
+                const newMov = {
+                    produto_id: product.id,
+                    tipo: 'SAÍDA',
+                    quantidade: cartItem.qty,
+                    motivo: `Venda #${registeredSale.id}`
+                };
+                const { data: movData } = await _supabase.from('movimentacoes').insert([newMov]).select();
+                if (movData && movData.length > 0) state.movimentacoes.push(movData[0]);
+
                 product.estoque = newStock;
             }
         }
 
-        const registeredSale = saleData && saleData.length > 0 ? saleData[0] : sale;
         state.sales.push(registeredSale);
         state.cart = [];
+
         
         // Limpar inputs de checkout
         const customerInput = document.getElementById('pos-customer-name');
