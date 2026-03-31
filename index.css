@@ -837,5 +837,154 @@ form input:focus {
     to { opacity: 0; transform: translateY(-10px); }
 }
 
-/* Clock utility */
-.clock { font-family: monospace; font-size: 1.2rem; font-weight: 600; color: var(--text-secondary); background: rgba(0,0,0,0.2); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm); }
+/* ===== Mobile Navigation Style ===== */
+#mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: 0.5rem 1rem;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.mobile-nav-links {
+    display: flex;
+    justify-content: space-between;
+    list-style: none;
+    padding: 0;
+}
+
+.mobile-nav-links li {
+    flex: 1;
+}
+
+.mobile-nav-links a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    padding: 0.5rem 0;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.mobile-nav-links a i {
+    font-size: 1.25rem;
+}
+
+.mobile-nav-links a.active {
+    color: var(--accent-color);
+}
+
+.mobile-nav-links a.active i {
+    transform: translateY(-2px);
+    text-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* ===== Responsive Media Queries ===== */
+@media (max-width: 768px) {
+    /* Layout Adjustments */
+    #sidebar { display: none !important; }
+    #mobile-nav { display: block; }
+    
+    #main-content {
+        width: 100% !important;
+        padding-bottom: 70px; /* Space for mobile nav */
+    }
+
+    body {
+        overflow-y: auto; /* Allow scrolling on body if needed */
+    }
+
+    /* Topbar */
+    .topbar {
+        padding: 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        text-align: left;
+    }
+    .topbar-title h2 { font-size: 1.2rem; }
+    
+    /* KPI Cards */
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Content Container */
+    .content-container {
+        padding: 1rem;
+    }
+
+    /* POS Mobile Layout */
+    .pos-layout {
+        flex-direction: column;
+        height: auto;
+        overflow-y: visible;
+        padding: 0 1rem 1rem;
+    }
+
+    .pos-catalog {
+        flex: none;
+        width: 100%;
+        max-height: 400px; /* Limit catalog height on mobile */
+    }
+
+    .catalog-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .pos-cart {
+        flex: none;
+        width: 100%;
+        min-width: 0;
+        margin-top: 1rem;
+    }
+
+    /* Forms & Modals */
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    .form-grid .input-group:nth-child(2) { grid-column: auto; }
+
+    .modal-content {
+        width: 95%;
+        padding: 1.5rem;
+    }
+
+    /* Tables */
+    .premium-table th, .premium-table td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    /* Floating Clock placement */
+    .clock {
+        font-size: 1rem;
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Checkout Buttons */
+    .btn-payment {
+        font-size: 0.95rem;
+        padding: 0.8rem;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    .catalog-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .auth-card {
+        padding: 1.5rem;
+    }
+}
+
