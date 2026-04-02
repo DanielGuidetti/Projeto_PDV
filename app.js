@@ -164,7 +164,8 @@ const renderProductsTable = () => {
                 <td>${p.estoque} un.</td>
                 <td><span class="badge ${statusClass}">${statusText}</span></td>
                 <td class="text-right">
-                    <button class="btn-icon" onclick="deleteProduct('${p.id}')"><i class="fas fa-trash text-danger"></i></button>
+                    <button class="btn-icon" onclick="editProduct('${p.id}')" title="Editar"><i class="fas fa-edit text-primary"></i></button>
+                    <button class="btn-icon" onclick="deleteProduct('${p.id}')" title="Excluir"><i class="fas fa-trash text-danger"></i></button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -172,24 +173,33 @@ const renderProductsTable = () => {
     }
 };
 
-document.getElementById('btn-new-product').addEventListener('click', () => productModal.classList.add('active'));
+document.getElementById('btn-new-product').addEventListener('click', () => {
+    document.getElementById('product-modal-title').textContent = 'Adicionar Novo Produto';
+    document.getElementById('prod-id').value = '';
+    document.getElementById('product-form').reset();
+    productModal.classList.add('active');
+});
 
 document.querySelectorAll('.close-modal').forEach(btn => {
     btn.addEventListener('click', () => {
         productModal.classList.remove('active');
-        if(document.getElementById('product-form')) document.getElementById('product-form').reset();
+        if(document.getElementById('product-form')) {
+            document.getElementById('product-form').reset();
+            document.getElementById('prod-id').value = '';
+        }
     });
 });
 
 document.getElementById('product-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const prodId = document.getElementById('prod-id').value;
     const PLU = document.getElementById('prod-code').value.trim();
     const nome = document.getElementById('prod-name').value.trim();
     const preco = parseFloat(document.getElementById('prod-price').value);
     const estoque = parseInt(document.getElementById('prod-stock').value);
 
     // Prevent duplicate codes locally
-    if (state.products.some(p => p.PLU === PLU)) {
+    if (state.products.some(p => p.PLU === PLU && String(p.id) !== prodId)) {
         showToast('Código de barras já cadastrado no banco.', 'error');
         return;
     }
@@ -197,40 +207,68 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
     const newProduct = { PLU, nome, preco, estoque }; // id gerado automaticamente pelo banco
 
     try {
-        const { data, error } = await _supabase.from('produtos').insert([newProduct]).select();
-        if (error) throw error;
-
-        let savedProduct = newProduct;
-        if (data && data.length > 0) {
-            savedProduct = data[0];
-            state.products.push(savedProduct);
-        } else {
-            state.products.push(savedProduct);
-        }
-
-        if (savedProduct.id && savedProduct.estoque > 0) {
-            const newMov = {
-                produto_id: savedProduct.id,
-                tipo: 'ENTRADA',
-                quantidade: savedProduct.estoque,
-                motivo: 'Estoque Inicial (Cadastro)'
-            };
-            const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
-            if (!movError && movData && movData.length > 0) {
-                state.movimentacoes.push(movData[0]);
-                if (typeof renderStockHistory === 'function') renderStockHistory();
+        if (prodId) {
+            // Update
+            const { data, error } = await _supabase.from('produtos').update(newProduct).eq('id', prodId).select();
+            if (error) throw error;
+            
+            const index = state.products.findIndex(p => String(p.id) === prodId);
+            if (index !== -1) {
+                state.products[index] = data && data.length > 0 ? data[0] : { ...state.products[index], ...newProduct };
             }
+            showToast('Produto atualizado com sucesso!', 'success');
+        } else {
+            // Insert
+            const { data, error } = await _supabase.from('produtos').insert([newProduct]).select();
+            if (error) throw error;
+
+            let savedProduct = newProduct;
+            if (data && data.length > 0) {
+                savedProduct = data[0];
+                state.products.push(savedProduct);
+            } else {
+                state.products.push(savedProduct);
+            }
+
+            if (savedProduct.id && savedProduct.estoque > 0) {
+                const newMov = {
+                    produto_id: savedProduct.id,
+                    tipo: 'ENTRADA',
+                    quantidade: savedProduct.estoque,
+                    motivo: 'Estoque Inicial (Cadastro)'
+                };
+                const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
+                if (!movError && movData && movData.length > 0) {
+                    state.movimentacoes.push(movData[0]);
+                    if (typeof renderStockHistory === 'function') renderStockHistory();
+                }
+            }
+            showToast('Produto adicionado com sucesso!', 'success');
         }
         
         productModal.classList.remove('active');
         e.target.reset();
+        document.getElementById('prod-id').value = '';
         renderProductsTable();
-        showToast('Produto adicionado com sucesso!', 'success');
     } catch(err) {
         showToast('Erro ao salvar produto no banco.', 'error');
         console.error(err);
     }
 });
+
+window.editProduct = (id) => {
+    const product = state.products.find(p => String(p.id) === String(id));
+    if (!product) return;
+
+    document.getElementById('product-modal-title').textContent = 'Editar Produto';
+    document.getElementById('prod-id').value = product.id;
+    document.getElementById('prod-code').value = product.PLU;
+    document.getElementById('prod-name').value = product.nome;
+    document.getElementById('prod-price').value = product.preco;
+    document.getElementById('prod-stock').value = product.estoque;
+
+    productModal.classList.add('active');
+};
 
 window.deleteProduct = async (id) => {
     if (confirm('Deseja realmente remover este produto do sistema?')) {
@@ -627,6 +665,7 @@ document.querySelectorAll('.close-modal').forEach(btn => {
         productModal.classList.remove('active');
         if(document.getElementById('product-form')) {
            document.getElementById('product-form').reset();
+           document.getElementById('prod-id').value = '';
         }
     });
 });

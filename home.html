@@ -18,7 +18,7 @@
     <!-- Sidebar Navigation -->
     <nav id="sidebar">
       <div class="sidebar-header">
-        <i class="fas fa-leaf logo-accent"></i>
+        <img src="./img/favicon.png" alt="Logo" style="width: 28px; height: 28px; object-fit: contain;">
         <h2>Sua Marca</h2>
       </div>
       <ul class="nav-links">
@@ -82,10 +82,11 @@
           <div class="modal-backdrop"></div>
           <div class="modal-content glass-card form-modal">
             <div class="modal-header">
-              <h3>Adicionar Novo Produto</h3>
+              <h3 id="product-modal-title">Adicionar Novo Produto</h3>
               <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
             </div>
             <form id="product-form">
+              <input type="hidden" id="prod-id" value="">
               <div class="form-grid">
                 <div class="input-group">
                   <label>Código de Barras</label>
