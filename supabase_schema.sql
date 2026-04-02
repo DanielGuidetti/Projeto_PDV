@@ -7,9 +7,30 @@ CREATE TABLE IF NOT EXISTS public.produtos (
     "PLU" TEXT NOT NULL,
     nome TEXT NOT NULL,
     preco NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    estoque INTEGER NOT NULL DEFAULT 0,
+    estoque NUMERIC(10, 3) NOT NULL DEFAULT 0,
+    pesavel BOOLEAN NOT NULL DEFAULT false,
+    controlar_estoque BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Adiciona a coluna na tabela existente caso ela já tenha sido criada (para atualizar o banco anterior)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name='produtos' AND column_name='pesavel'
+  ) THEN
+    ALTER TABLE public.produtos ADD COLUMN pesavel BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE public.produtos ALTER COLUMN estoque TYPE NUMERIC(10,3);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name='produtos' AND column_name='controlar_estoque'
+  ) THEN
+    ALTER TABLE public.produtos ADD COLUMN controlar_estoque BOOLEAN NOT NULL DEFAULT true;
+  END IF;
+END $$;
 
 -- Garante que não haverá produtos com o mesmo Código de Barras duplicado
 DO $$
@@ -85,3 +106,57 @@ CREATE POLICY "Permitir leitura para auth" ON public.movimentacoes FOR SELECT US
 
 DROP POLICY IF EXISTS "Permitir inserção para auth" ON public.movimentacoes;
 CREATE POLICY "Permitir inserção para auth" ON public.movimentacoes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+
+-- ========================================================
+-- 4. Criação da tabela de Perfis de Usuário (Cargos/Hierarquia)
+-- ========================================================
+CREATE TABLE IF NOT EXISTS public.user_roles (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ativar RLS
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+
+-- Permitir que os usuários leiam o próprio cargo
+DROP POLICY IF EXISTS "Permitir leitura da propria role" ON public.user_roles;
+CREATE POLICY "Permitir leitura da propria role" ON public.user_roles FOR SELECT USING (auth.uid() = user_id);
+
+-- Função e Trigger para criar role de novo usuário automaticamente
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_roles (user_id, role)
+  VALUES (new.id, 'user');
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- ========================================================
+-- 5. Criação da tabela de Configuração da Balança
+-- ========================================================
+CREATE TABLE IF NOT EXISTS public.scale_configs (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    prefix_length INTEGER NOT NULL DEFAULT 1,
+    plu_length INTEGER NOT NULL DEFAULT 4,
+    value_length INTEGER NOT NULL DEFAULT 5,
+    value_type TEXT NOT NULL DEFAULT 'price' CHECK (value_type IN ('price', 'weight')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ativar RLS
+ALTER TABLE public.scale_configs ENABLE ROW LEVEL SECURITY;
+
+-- Permitir leitura/escrita pelo próprio usuário
+DROP POLICY IF EXISTS "Permitir leitura da propria config" ON public.scale_configs;
+CREATE POLICY "Permitir leitura da propria config" ON public.scale_configs FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Permitir inserção/edição propria config" ON public.scale_configs;
+CREATE POLICY "Permitir inserção/edição propria config" ON public.scale_configs FOR ALL USING (auth.uid() = user_id);

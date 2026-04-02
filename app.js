@@ -1,6 +1,7 @@
-/* ===== State Management ===== */
 const state = {
     currentUser: null,
+    userRole: 'user',
+    scaleConfig: null,
     products: [],
     sales: [],
     cart: [],
@@ -77,7 +78,10 @@ const navigateTo = async (routeId) => {
         navigateTo('screen-login');
         return;
     }
-    
+    if (routeId === 'screen-settings' && state.userRole !== 'admin') {
+        showToast('Acesso negado. Apenas administradores podem acessar as configurações.', 'error');
+        return;
+    }
     app.screens.forEach(s => s.classList.remove('active'));
     const target = document.getElementById(routeId);
     if (target) target.classList.add('active');
@@ -109,13 +113,13 @@ app.navLinks.forEach(link => {
 /* ===== Data Loading ===== */
 const loadData = async () => {
     try {
-        const { data: produtos } = await _supabase.from('produtos').select('*');
+        const { data: produtos } = await _supabase.from('produtos').select('*').eq('user_id', state.currentUser.id);
         if (produtos) state.products = produtos;
         
-        const { data: vendas } = await _supabase.from('vendas').select('*');
+        const { data: vendas } = await _supabase.from('vendas').select('*').eq('user_id', state.currentUser.id);
         if (vendas) state.sales = vendas;
 
-        const { data: movs } = await _supabase.from('movimentacoes').select('*');
+        const { data: movs } = await _supabase.from('movimentacoes').select('*').eq('user_id', state.currentUser.id);
         if (movs) state.movimentacoes = movs;
     } catch (e) {
         console.error('Erro ao carregar dados do Supabase:', e);
@@ -154,14 +158,24 @@ const renderProductsTable = () => {
         tbody.parentElement.classList.remove('hidden');
         state.products.forEach(p => {
             const tr = document.createElement('tr');
-            const statusClass = p.estoque > 10 ? 'badge-success' : p.estoque > 0 ? 'badge-warning' : 'badge-danger';
-            const statusText = p.estoque > 10 ? 'Em Estoque' : p.estoque > 0 ? 'Baixo Estoque' : 'Esgotado';
+            let statusClass = 'badge-success';
+            let statusText = 'Em Estoque';
+            if (p.controlar_estoque !== false) {
+                statusClass = p.estoque > 10 ? 'badge-success' : p.estoque > 0 ? 'badge-warning' : 'badge-danger';
+                statusText = p.estoque > 10 ? 'Em Estoque' : p.estoque > 0 ? 'Baixo Estoque' : 'Esgotado';
+            } else {
+                statusClass = 'badge-info';
+                statusText = 'Ilimitado';
+            }
             
+            let estoqueStr = p.pesavel ? parseFloat(p.estoque).toFixed(3).replace('.',',') + ' kg' : p.estoque + ' un.';
+            if (p.controlar_estoque === false) estoqueStr = '--';
+
             tr.innerHTML = `
                 <td><span class="text-muted">#${p.PLU}</span></td>
-                <td><strong>${p.nome}</strong></td>
+                <td><strong>${p.nome}</strong> ${p.pesavel ? '<i class="fas fa-balance-scale text-muted" title="Produto pesável" style="margin-left: 0.5rem;"></i>' : ''}</td>
                 <td>${formatMoney(p.preco)}</td>
-                <td>${p.estoque} un.</td>
+                <td>${estoqueStr}</td>
                 <td><span class="badge ${statusClass}">${statusText}</span></td>
                 <td class="text-right">
                     <button class="btn-icon" onclick="editProduct('${p.id}')" title="Editar"><i class="fas fa-edit text-primary"></i></button>
@@ -177,8 +191,22 @@ document.getElementById('btn-new-product').addEventListener('click', () => {
     document.getElementById('product-modal-title').textContent = 'Adicionar Novo Produto';
     document.getElementById('prod-id').value = '';
     document.getElementById('product-form').reset();
+    toggleStockInput();
     productModal.classList.add('active');
 });
+
+const toggleStockInput = () => {
+    const isChecked = document.getElementById('prod-control-stock').checked;
+    const stockInput = document.getElementById('prod-stock');
+    const isEditing = !!document.getElementById('prod-id').value;
+    
+    stockInput.disabled = !isChecked || isEditing;
+    stockInput.required = isChecked && !isEditing;
+    if (!isChecked) {
+        stockInput.value = '';
+    }
+};
+document.getElementById('prod-control-stock').addEventListener('change', toggleStockInput);
 
 document.querySelectorAll('.close-modal').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -196,7 +224,9 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
     const PLU = document.getElementById('prod-code').value.trim();
     const nome = document.getElementById('prod-name').value.trim();
     const preco = parseFloat(document.getElementById('prod-price').value);
-    const estoque = parseInt(document.getElementById('prod-stock').value);
+    const estoque = parseFloat(document.getElementById('prod-stock').value) || 0;
+    const pesavel = document.getElementById('prod-pesavel').checked;
+    const controlar_estoque = document.getElementById('prod-control-stock').checked;
 
     // Prevent duplicate codes locally
     if (state.products.some(p => p.PLU === PLU && String(p.id) !== prodId)) {
@@ -204,11 +234,12 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
         return;
     }
 
-    const newProduct = { PLU, nome, preco, estoque }; // id gerado automaticamente pelo banco
+    const newProduct = { PLU, nome, preco, estoque, pesavel, controlar_estoque, user_id: state.currentUser.id }; // id gerado automaticamente pelo banco
 
     try {
         if (prodId) {
-            // Update
+            // Update - Não permite alteração na qtde de estoque já existente
+            delete newProduct.estoque;
             const { data, error } = await _supabase.from('produtos').update(newProduct).eq('id', prodId).select();
             if (error) throw error;
             
@@ -230,12 +261,13 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
                 state.products.push(savedProduct);
             }
 
-            if (savedProduct.id && savedProduct.estoque > 0) {
+            if (savedProduct.id && savedProduct.estoque > 0 && savedProduct.controlar_estoque !== false) {
                 const newMov = {
                     produto_id: savedProduct.id,
                     tipo: 'ENTRADA',
                     quantidade: savedProduct.estoque,
-                    motivo: 'Estoque Inicial (Cadastro)'
+                    motivo: 'Estoque Inicial (Cadastro)',
+                    user_id: state.currentUser.id
                 };
                 const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
                 if (!movError && movData && movData.length > 0) {
@@ -266,6 +298,9 @@ window.editProduct = (id) => {
     document.getElementById('prod-name').value = product.nome;
     document.getElementById('prod-price').value = product.preco;
     document.getElementById('prod-stock').value = product.estoque;
+    document.getElementById('prod-pesavel').checked = !!product.pesavel;
+    document.getElementById('prod-control-stock').checked = product.controlar_estoque !== false;
+    toggleStockInput();
 
     productModal.classList.add('active');
 };
@@ -309,11 +344,13 @@ const renderPosCatalog = (searchTerm = '') => {
     }
 
     filtered.forEach(p => {
-        const isOutOfStock = p.estoque <= 0;
+        const isOutOfStock = p.controlar_estoque !== false && p.estoque <= 0;
         const card = document.createElement('div');
         card.className = `product-card ${isOutOfStock ? 'opacity-50' : ''}`;
+        
+        const stockDisplay = p.controlar_estoque === false ? '∞' : (p.pesavel ? parseFloat(p.estoque).toFixed(3).replace('.',',') + 'kg' : p.estoque + ' un.');
         card.innerHTML = `
-            <span class="stock">${p.estoque} un.</span>
+            <span class="stock">${stockDisplay}</span>
             <span class="code">#${p.PLU}</span>
             <span class="name">${p.nome}</span>
             <span class="price">${formatMoney(p.preco)}</span>
@@ -325,12 +362,48 @@ const renderPosCatalog = (searchTerm = '') => {
 
 document.getElementById('pos-search').addEventListener('input', (e) => renderPosCatalog(e.target.value));
 
+const tryParseScaleBarcode = (barcode) => {
+    const cfg = state.scaleConfig;
+    if (!cfg) return null;
+    
+    const expectedLen = cfg.prefix_length + cfg.plu_length + cfg.value_length + 1; // +1 checksum
+    if (barcode.length !== expectedLen && barcode.length !== expectedLen - 1) return null;
+    
+    // Extracted strings
+    const pluStr = barcode.substring(cfg.prefix_length, cfg.prefix_length + cfg.plu_length);
+    const valueStr = barcode.substring(cfg.prefix_length + cfg.plu_length, cfg.prefix_length + cfg.plu_length + cfg.value_length);
+    
+    const pluNum = parseInt(pluStr, 10);
+    const product = state.products.find(p => (p.PLU === pluStr || String(p.PLU) === String(pluNum)) && p.pesavel);
+    if (!product) return null;
+
+    const parsedValue = parseInt(valueStr, 10);
+    if (isNaN(parsedValue)) return null;
+
+    let qty = 1;
+    if (cfg.value_type === 'price') {
+        qty = Number(((parsedValue / 100) / product.preco).toFixed(3));
+    } else {
+        qty = Number((parsedValue / 1000).toFixed(3));
+    }
+
+    return { product, qty };
+};
+
 // Suporte ao Leitor de Código de Barras (Enter)
 document.getElementById('pos-search').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         const val = e.target.value.trim();
         if (!val) return;
         
+        const scaleData = tryParseScaleBarcode(val);
+        if (scaleData && scaleData.product) {
+            addToCart(scaleData.product, scaleData.qty);
+            e.target.value = '';
+            renderPosCatalog('');
+            return;
+        }
+
         // Busca produto pelo PLU exato (prioridade para leitor)
         const product = state.products.find(p => p.PLU === val);
         
@@ -363,17 +436,23 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-const addToCart = (product) => {
+const addToCart = (product, requestedQty = 1) => {
     const existing = state.cart.find(item => item.product.id === product.id);
     if (existing) {
-        if (existing.qty >= product.estoque) {
+        if (product.controlar_estoque !== false && existing.qty + requestedQty > product.estoque) {
             showToast('Estoque insuficiente para a quantidade.', 'error');
             return;
         }
-        existing.qty += 1;
+        existing.qty += requestedQty;
     } else {
-        if (product.estoque <= 0) return;
-        state.cart.push({ product, qty: 1 });
+        if (product.controlar_estoque !== false) {
+            if (product.estoque < requestedQty && product.estoque > 0) {
+               showToast('Estoque insuficiente.', 'error');
+               return;
+            }
+            if (product.estoque <= 0) return;
+        }
+        state.cart.push({ product, qty: requestedQty });
     }
     renderCart();
 };
@@ -385,7 +464,7 @@ window.updateCartQty = (productId, delta) => {
     const newQty = item.qty + delta;
     if (newQty <= 0) {
         state.cart = state.cart.filter(i => String(i.product.id) !== String(productId));
-    } else if (newQty > item.product.estoque) {
+    } else if (item.product.controlar_estoque !== false && newQty > item.product.estoque) {
         showToast('Limite de estoque atingido.', 'error');
     } else {
         item.qty = newQty;
@@ -422,20 +501,24 @@ const renderCart = () => {
     let totalValue = 0;
 
     state.cart.forEach(item => {
-        totalItens += item.qty;
+        totalItens += item.product.pesavel ? 1 : item.qty;
         const itemTotal = item.qty * item.product.preco;
         totalValue += itemTotal;
 
         const div = document.createElement('div');
         div.className = 'cart-item';
+        
+        const isDecimal = !Number.isInteger(item.qty) && item.qty % 1 !== 0;
+        const qtyDisplay = isDecimal ? item.qty.toFixed(3).replace('.',',') + ' kg' : item.qty;
+
         div.innerHTML = `
             <div class="cart-item-info">
                 <h4>${item.product.nome}</h4>
-                <p>${formatMoney(item.product.preco)} un.</p>
+                <p>${formatMoney(item.product.preco)} ${isDecimal ? 'p/ kg' : 'un.'}</p>
             </div>
             <div class="cart-item-actions">
                 <button class="btn-icon" onclick="updateCartQty('${item.product.id}', -1)"><i class="fas fa-minus circle"></i></button>
-                <span class="qty">${item.qty}</span>
+                <span class="qty">${qtyDisplay}</span>
                 <button class="btn-icon" onclick="updateCartQty('${item.product.id}', 1)"><i class="fas fa-plus circle"></i></button>
             </div>
             <div style="font-weight:600; min-width:80px; text-align:right">
@@ -485,7 +568,7 @@ const completeCheckout = async (method) => {
     checkoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finalizando...';
 
     const total = state.cart.reduce((sum, item) => sum + (item.product.preco * item.qty), 0);
-    const totalItens = state.cart.reduce((sum, item) => sum + item.qty, 0);
+    const totalItens = state.cart.reduce((sum, item) => sum + (item.product.pesavel ? 1 : item.qty), 0);
     const clienteName = document.getElementById('pos-customer-name')?.value.trim();
 
     // Save Sale
@@ -495,6 +578,7 @@ const completeCheckout = async (method) => {
         totalItens,
         cliente: clienteName || null,
         forma_pagamento: method,
+        user_id: state.currentUser.id,
         itens: state.cart.map(item => ({
             id: item.product.id,
             PLU: item.product.PLU,
@@ -513,18 +597,23 @@ const completeCheckout = async (method) => {
         // Deduct Stock and Record Movement
         for (let cartItem of state.cart) {
             const product = state.products.find(p => p.id === cartItem.product.id);
-            if (product) {
-                const newStock = product.estoque - cartItem.qty;
-                await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+            if (product && product.controlar_estoque !== false) {
+                const qtyVal = Number(cartItem.qty.toFixed(3));
+                const newStock = Number((product.estoque - qtyVal).toFixed(3));
+                const { error: stockError } = await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                if (stockError) console.error("Erro ao atualizar estoque da venda:", stockError);
                 
                 // Registra a movimentação de saída vinculada à venda
                 const newMov = {
                     produto_id: product.id,
                     tipo: 'SAÍDA',
-                    quantidade: cartItem.qty,
-                    motivo: `Venda #${registeredSale.id}`
+                    quantidade: qtyVal,
+                    motivo: `Venda #${registeredSale.id}`,
+                    user_id: state.currentUser.id
                 };
-                const { data: movData } = await _supabase.from('movimentacoes').insert([newMov]).select();
+                const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
+                if (movError) console.error("Erro ao inserir movimentação da venda:", movError);
+
                 if (movData && movData.length > 0) state.movimentacoes.push(movData[0]);
 
                 product.estoque = newStock;
@@ -693,11 +782,14 @@ const renderStockHistory = () => {
             const typeClass = m.tipo === 'ENTRADA' ? 'text-success' : 'text-danger';
             const typeIcon = m.tipo === 'ENTRADA' ? 'fa-arrow-up' : 'fa-arrow-down';
             
+            const isPesavel = product && product.pesavel;
+            const qtdStr = isPesavel ? parseFloat(m.quantidade).toFixed(3).replace('.',',') + ' kg' : m.quantidade + ' un.';
+
             tr.innerHTML = `
                 <td><span class="text-muted"><i class="far fa-clock"></i> ${formatDate(m.data_movimentacao)}</span></td>
                 <td><strong>${product ? product.nome : 'Produto Removido (' + m.produto_id + ')'}</strong></td>
                 <td><span class="${typeClass} font-weight-bold"><i class="fas ${typeIcon}"></i> ${m.tipo}</span></td>
-                <td>${m.quantidade} un.</td>
+                <td>${qtdStr}</td>
                 <td><span class="text-muted">${m.motivo || '-'}</span></td>
             `;
             tbody.appendChild(tr);
@@ -708,8 +800,9 @@ const renderStockHistory = () => {
 document.getElementById('btn-new-movement').addEventListener('click', () => {
     const select = document.getElementById('mov-product');
     select.innerHTML = '<option value="" disabled selected>Selecione um produto</option>';
-    state.products.forEach(p => {
-        select.innerHTML += `<option value="${p.id}">${p.nome} (Atual: ${p.estoque} un.)</option>`;
+    state.products.filter(p => p.controlar_estoque !== false).forEach(p => {
+        const estStr = p.pesavel ? parseFloat(p.estoque).toFixed(3).replace('.',',') + ' kg' : p.estoque + ' un.';
+        select.innerHTML += `<option value="${p.id}">${p.nome} (Atual: ${estStr})</option>`;
     });
     movementModal.classList.add('active');
 });
@@ -725,7 +818,7 @@ document.getElementById('movement-form').addEventListener('submit', async (e) =>
     e.preventDefault();
     const produto_id = document.getElementById('mov-product').value;
     const tipo = document.getElementById('mov-type').value;
-    const quantidade = parseInt(document.getElementById('mov-qty').value);
+    const quantidade = parseFloat(document.getElementById('mov-qty').value) || 0;
     const motivo = document.getElementById('mov-reason').value.trim();
 
     if(!produto_id) {
@@ -749,7 +842,8 @@ document.getElementById('movement-form').addEventListener('submit', async (e) =>
         produto_id: parseInt(produto_id),
         tipo,
         quantidade,
-        motivo
+        motivo,
+        user_id: state.currentUser.id
     };
 
     try {
@@ -776,6 +870,56 @@ document.getElementById('movement-form').addEventListener('submit', async (e) =>
     }
 });
 
+/* ===== Configurações / Balança ====== */
+const scaleModal = document.getElementById('scale-config-modal');
+
+window.openScaleConfigModal = () => {
+    if (state.scaleConfig) {
+        document.getElementById('scale-prefix-len').value = state.scaleConfig.prefix_length;
+        document.getElementById('scale-plu-len').value = state.scaleConfig.plu_length;
+        document.getElementById('scale-val-len').value = state.scaleConfig.value_length;
+        document.getElementById('scale-val-type').value = state.scaleConfig.value_type;
+    }
+    
+    // trigger preview update
+    document.getElementById('scale-val-len').dispatchEvent(new Event('input'));
+    scaleModal.classList.add('active');
+};
+
+document.getElementById('scale-val-len')?.addEventListener('input', (e) => {
+    const val = e.target.value;
+    document.getElementById('scale-format-preview').textContent = val;
+});
+
+document.querySelectorAll('#scale-config-modal .close-modal').forEach(btn => {
+    btn.addEventListener('click', () => {
+        scaleModal.classList.remove('active');
+    });
+});
+
+document.getElementById('scale-config-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const config = {
+        prefix_length: parseInt(document.getElementById('scale-prefix-len').value),
+        plu_length: parseInt(document.getElementById('scale-plu-len').value),
+        value_length: parseInt(document.getElementById('scale-val-len').value),
+        value_type: document.getElementById('scale-val-type').value,
+        user_id: state.currentUser.id
+    };
+
+    try {
+        const { error } = await _supabase.from('scale_configs').upsert(config, { onConflict: 'user_id' });
+        if (error) throw error;
+        state.scaleConfig = config;
+        showToast('Configuração salva com sucesso!', 'success');
+        scaleModal.classList.remove('active');
+    } catch(err) {
+        console.error(err);
+        showToast('Erro ao salvar configurações.', 'error');
+    }
+});
+
+
 /* ===== App Initialization ===== */
 // Start App
 (async () => {
@@ -786,10 +930,29 @@ document.getElementById('movement-form').addEventListener('submit', async (e) =>
     }
     
     state.currentUser = session.user;
+
+    // Buscar Role do Usuário
+    const { data: roleData } = await _supabase.from('user_roles').select('role').eq('user_id', session.user.id).single();
+    if (roleData) {
+        state.userRole = roleData.role;
+    }
+
+    // Buscar Configuração de Balança
+    const { data: scaleData } = await _supabase.from('scale_configs').select('*').eq('user_id', session.user.id).single();
+    if (scaleData) {
+        state.scaleConfig = scaleData;
+    }
+
     const userEmail = session.user.email;
-    app.usernameDisplay.textContent = userEmail.length > 15 ? userEmail.substring(0, 15) + '...' : userEmail;
-    app.usernameDisplay.title = userEmail;
-    
+    const displayName = state.userRole === 'admin' ? `${userEmail} (Admin)` : `${userEmail} (Caixa)`;
+    app.usernameDisplay.textContent = displayName.length > 22 ? displayName.substring(0, 22) + '...' : displayName;
+    app.usernameDisplay.title = displayName;
+
+    if (state.userRole === 'admin') {
+        const navSettings = document.getElementById('nav-settings');
+        if (navSettings) navSettings.style.display = 'flex';
+    }
+
     await loadData();
     navigateTo('screen-pos');
 })();
