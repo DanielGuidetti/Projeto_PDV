@@ -990,3 +990,84 @@ form input:focus {
     }
 }
 
+/* ===== Print Styles ===== */
+@media print {
+    body { background: #fff !important; color: #000 !important; background-image: none !important; }
+    #app, #toast-container, .modal { display: none !important; }
+    #print-receipt { display: block !important; }
+    
+    #print-receipt {
+        font-family: monospace;
+        width: 100%;
+        max-width: 80mm;
+        margin: 0 auto;
+        font-size: 12px;
+        color: #000;
+    }
+    
+    .print-header { text-align: center; margin-bottom: 10px; }
+    .print-header h1 { font-size: 16px; margin: 0 0 4px; padding: 0; }
+    .print-header p { margin: 2px 0; font-size: 11px; }
+    
+    .print-divider { border-top: 1px dashed #000; margin: 8px 0; }
+    
+    .print-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .print-item-col { display: flex; flex-direction: column; }
+    
+    .print-total { text-align: right; font-weight: bold; font-size: 14px; margin-top: 10px; }
+    .print-footer { text-align: center; margin-top: 20px; font-weight: bold; font-size: 12px; }
+}
+
+/* Forca estilos absolutos no div do html2pdf para capturar preto no branco fora do media query */
+#print-receipt, #print-receipt * { color: #000 !important; }
+#print-receipt { background: #fff !important; padding: 15px !important; }
+.print-divider { border-color: #000 !important; }
+
+/* ===== Pagination Styles ===== */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 0;
+}
+
+.pagination-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+    border-color: var(--primary-light);
+}
+
+.pagination-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+.pagination-numbers {
+    display: flex;
+    gap: 0.4rem;
+    margin: 0 0.5rem;
+}

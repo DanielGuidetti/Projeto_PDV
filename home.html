@@ -208,6 +208,34 @@
             </div>
           </div>
         </div>
+
+        <!-- Cash Payment Modal -->
+        <div id="cash-payment-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+              <h3 style="width: 100%; text-align: center;">Pagamento em Dinheiro</h3>
+            </div>
+            <div style="padding: 1rem 0;">
+              <p class="text-muted" style="margin-bottom: 0.5rem">Total da Compra</p>
+              <h1 id="cash-modal-total" class="text-accent" style="font-size: 2.5rem; margin-bottom: 1.5rem;">R$ 0,00</h1>
+
+              <div class="input-group" style="text-align: left;">
+                <label>Valor Recebido do Cliente (R$)</label>
+                <input type="number" step="0.01" id="cash-amount-received" placeholder="0.00" style="font-size: 1.5rem; padding: 1rem; border-radius: 8px;">
+              </div>
+
+              <div id="cash-change-container" style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: rgba(32, 201, 151, 0.1); border: 1px solid rgba(32, 201, 151, 0.3); border-radius: 8px;">
+                <p class="text-muted" style="margin-bottom: 0.2rem">Troco a Devolver</p>
+                <h1 id="cash-change-value" class="text-success" style="font-size: 2.5rem; margin: 0;">R$ 0,00</h1>
+              </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between; margin-top: 1rem;">
+              <button type="button" class="btn btn-ghost close-cash-modal">Voltar</button>
+              <button type="button" id="btn-confirm-cash" class="btn btn-primary" disabled><i class="fas fa-check"></i> Confirmar Venda</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ====== Sales Report Screen ====== -->
@@ -278,6 +306,11 @@
               <i class="fas fa-search"></i>
               <p>Nenhuma venda encontrada no período.</p>
             </div>
+            
+            <!-- Pagination -->
+            <div id="reports-pagination" class="pagination-container mt-4">
+              <!-- Populated by JS -->
+            </div>
           </div>
         </div>
 
@@ -294,6 +327,7 @@
                 <i class="far fa-clock"></i> <span id="detail-sale-date"></span><br><br>
                 <strong>Cliente:</strong> <span id="detail-sale-customer"></span><br>
                 <strong>Pgto:</strong> <span id="detail-sale-payment"></span>
+                <span id="detail-sale-cash-info" style="display: none;"><br><strong>Recebido:</strong> <span id="detail-sale-received"></span> | <strong>Troco:</strong> <span id="detail-sale-change"></span></span>
               </span>
               <span style="text-align: right;"><strong>Total:</strong><br><span id="detail-sale-total" class="text-success" style="font-size: 1.5rem; font-weight: bold;"></span></span>
             </div>
@@ -409,6 +443,11 @@
               <h3>Balança de Etiqueta</h3>
               <p class="text-muted">Configurar formato do código de barras da balança do seu açougue/padaria</p>
             </div>
+            <div class="glass-card" style="padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s;" onclick="openReceiptConfigModal()">
+              <div style="font-size: 3rem; color: var(--success-color); margin-bottom: 1rem;"><i class="fas fa-store"></i></div>
+              <h3>Nome da Mercearia</h3>
+              <p class="text-muted">Personalize as mensagens e o título do seu recibo</p>
+            </div>
           </div>
         </div>
 
@@ -454,6 +493,35 @@
             </form>
           </div>
         </div>
+
+        <!-- Receipt Config Modal -->
+        <div id="receipt-config-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal">
+            <div class="modal-header">
+              <h3>Configuração da Mercearia</h3>
+              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="receipt-config-form">
+              <div class="form-grid">
+                <div class="input-group" style="grid-column: 1 / -1;">
+                  <label>Nome do Estabelecimento</label>
+                  <input type="text" id="receipt-store-name" required placeholder="Ex: Mercearia do João">
+                </div>
+                <div class="input-group" style="grid-column: 1 / -1;">
+                  <label>Mensagem de Rodapé</label>
+                  <p class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.5rem;">A tag {cliente} será substituída pelo nome do cliente caso houver.</p>
+                  <input type="text" id="receipt-footer-msg" required placeholder="Ex: Obrigado {cliente}, volte sempre!">
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-ghost close-modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
       </section>
 
     </main>
@@ -472,6 +540,8 @@
 
   <!-- Floating Toast Notification System -->
   <div id="toast-container"></div>
+  
+  <div id="print-receipt" style="display: none;"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>

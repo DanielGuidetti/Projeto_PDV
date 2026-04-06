@@ -2,6 +2,11 @@ const state = {
     currentUser: null,
     userRole: 'user',
     scaleConfig: null,
+    receiptConfig: {
+        storeName: 'Nova Astari',
+        footerMsg: 'Obrigado {cliente}, volte sempre!'
+    },
+    currentReportPage: 1,
     products: [],
     sales: [],
     cart: [],
@@ -113,6 +118,11 @@ app.navLinks.forEach(link => {
 /* ===== Data Loading ===== */
 const loadData = async () => {
     try {
+        const storedConfig = localStorage.getItem('receiptConfig_' + state.currentUser.id);
+        if (storedConfig) {
+            state.receiptConfig = JSON.parse(storedConfig);
+        }
+
         const { data: produtos } = await _supabase.from('produtos').select('*').eq('user_id', state.currentUser.id);
         if (produtos) state.products = produtos;
         
@@ -554,11 +564,73 @@ document.querySelector('.close-checkout').addEventListener('click', () => {
 document.querySelectorAll('.btn-payment').forEach(btn => {
     btn.addEventListener('click', async (e) => {
         const method = e.currentTarget.dataset.method;
-        await completeCheckout(method);
+        if (method === 'DINHEIRO') {
+            openCashPaymentModal();
+        } else {
+            await completeCheckout(method);
+        }
     });
 });
 
-const completeCheckout = async (method) => {
+/* ===== Cash Payment Modal Logic ===== */
+const cashModal = document.getElementById('cash-payment-modal');
+const receivedInput = document.getElementById('cash-amount-received');
+const changeContainer = document.getElementById('cash-change-container');
+const changeValue = document.getElementById('cash-change-value');
+const confirmCashBtn = document.getElementById('btn-confirm-cash');
+let currentSaleTotal = 0;
+
+const openCashPaymentModal = () => {
+    checkoutModal.classList.remove('active');
+    currentSaleTotal = state.cart.reduce((sum, item) => sum + (item.product.preco * item.qty), 0);
+    document.getElementById('cash-modal-total').textContent = formatMoney(currentSaleTotal);
+    
+    receivedInput.value = '';
+    changeContainer.style.display = 'none';
+    confirmCashBtn.disabled = true;
+    
+    cashModal.classList.add('active');
+    setTimeout(() => receivedInput.focus(), 100);
+};
+
+if (document.querySelector('.close-cash-modal')) {
+    document.querySelector('.close-cash-modal').addEventListener('click', () => {
+        cashModal.classList.remove('active');
+        checkoutModal.classList.add('active'); // Voltar para modal de pagamento
+    });
+}
+
+if (receivedInput) {
+    receivedInput.addEventListener('input', (e) => {
+        const received = parseFloat(e.target.value.replace(',','.'));
+        if (!isNaN(received) && received >= currentSaleTotal) {
+            const change = received - currentSaleTotal;
+            changeValue.textContent = formatMoney(change);
+            changeContainer.style.display = 'block';
+            confirmCashBtn.disabled = false;
+        } else {
+            changeContainer.style.display = 'none';
+            confirmCashBtn.disabled = true;
+        }
+    });
+
+    receivedInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !confirmCashBtn.disabled) {
+            confirmCashBtn.click();
+        }
+    });
+}
+
+if (confirmCashBtn) {
+    confirmCashBtn.addEventListener('click', async () => {
+        const received = parseFloat(receivedInput.value.replace(',','.'));
+        const change = received - currentSaleTotal;
+        cashModal.classList.remove('active');
+        await completeCheckout('DINHEIRO', received, change);
+    });
+}
+
+const completeCheckout = async (method, valorPago = null, troco = null) => {
     if (state.cart.length === 0) return;
 
     checkoutModal.classList.remove('active'); // fecha o modal
@@ -587,6 +659,8 @@ const completeCheckout = async (method) => {
             qty: item.qty
         }))
     };
+    if (valorPago !== null) sale.valor_pago = valorPago;
+    if (troco !== null) sale.troco = troco;
 
     try {
         const { data: saleData, error: saleError } = await _supabase.from('vendas').insert([sale]).select();
@@ -632,6 +706,9 @@ const completeCheckout = async (method) => {
         renderPosCatalog();
         
         showToast(`Venda ${registeredSale.id || ''} finalizada com sucesso!`, 'success');
+
+        printReceipt(registeredSale);
+        
     } catch (err) {
         showToast('Erro ao processar venda no banco.', 'error');
         console.error(err);
@@ -639,6 +716,75 @@ const completeCheckout = async (method) => {
         checkoutBtn.disabled = false;
         checkoutBtn.innerHTML = '<i class="fas fa-check-circle"></i> Finalizar Venda (F2)';
     }
+};
+
+const printReceipt = (sale) => {
+    const printEl = document.getElementById('print-receipt');
+    if (!printEl) return;
+    
+    let html = `
+        <div class="print-header">
+            <h1>${state.receiptConfig.storeName}</h1>
+            <p>Data: ${formatDate(sale.data)}</p>
+            <p>Recibo da Venda #${sale.id || 'N/A'}</p>
+        </div>
+        <div class="print-divider"></div>
+        <div style="font-weight: bold; display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span>Item</span>
+            <span>Total</span>
+        </div>
+    `;
+
+    sale.itens.forEach(item => {
+        const itemTotal = item.qty * item.preco;
+        const qtyDisplay = (item.qty % 1 !== 0) ? item.qty.toFixed(3).replace('.', ',') + 'kg' : item.qty + 'un';
+        
+        html += `
+            <div class="print-item">
+                <div class="print-item-col" style="flex: 1; text-align: left; padding-right: 5px;">
+                    <span>${item.nome}</span>
+                    <span style="font-size: 10px;">${qtyDisplay} x ${formatMoney(item.preco)}</span>
+                </div>
+                <div>${formatMoney(itemTotal)}</div>
+            </div>
+        `;
+    });
+
+    html += `
+        <div class="print-divider"></div>
+        <div class="print-total">TOTAL: ${formatMoney(Number(sale.total))}</div>
+        <div style="text-align: right; font-size: 11px; margin-top: 5px;">Pgto: ${sale.forma_pagamento}</div>
+    `;
+
+    if (sale.forma_pagamento === 'DINHEIRO' && sale.valor_pago !== undefined && sale.troco !== undefined) {
+        html += `
+            <div style="text-align: right; font-size: 11px;">Recebido: ${formatMoney(Number(sale.valor_pago))}</div>
+            <div style="text-align: right; font-size: 11px;">Troco: ${formatMoney(Number(sale.troco))}</div>
+        `;
+    }
+
+    let footerMessage = state.receiptConfig.footerMsg;
+    if (sale.cliente && sale.cliente.trim() !== '') {
+        if (footerMessage.includes('{cliente}')) {
+            footerMessage = footerMessage.replace('{cliente}', sale.cliente);
+        } else {
+            footerMessage = `Cliente: ${sale.cliente}<br>` + footerMessage;
+        }
+    } else {
+        footerMessage = footerMessage.replace('{cliente}', '').replace(' ,', ',').replace('  ', ' ').trim();
+    }
+
+    html += `
+        <div class="print-footer">
+            ${footerMessage}
+        </div>
+    `;
+
+    printEl.innerHTML = html;
+    
+    setTimeout(() => {
+        window.print();
+    }, 100);
 };
 
 // Shortcut checkout
@@ -663,7 +809,9 @@ document.getElementById('btn-filter-reports').addEventListener('click', () => {
     renderReports();
 });
 
-const renderReports = async () => {
+const renderReports = async (resetPage = true) => {
+    if (resetPage) state.currentReportPage = 1;
+
     const startInput = document.getElementById('filter-date-start').value;
     const endInput = document.getElementById('filter-date-end').value;
     
@@ -691,19 +839,27 @@ const renderReports = async () => {
 
     const tbody = document.getElementById('sales-table-body');
     const emptyMsg = document.getElementById('empty-sales-msg');
+    const paginationContainer = document.getElementById('reports-pagination');
     tbody.innerHTML = '';
     
     if (filteredSales.length === 0) {
         emptyMsg.classList.remove('hidden');
         tbody.parentElement.classList.add('hidden');
+        paginationContainer.innerHTML = '';
     } else {
         emptyMsg.classList.add('hidden');
         tbody.parentElement.classList.remove('hidden');
         
-        // Mostrar do mais novo pro mais velho
+        // Ordenar: mais novo primeiro
         const sortedSales = filteredSales.sort((a,b) => new Date(b.data) - new Date(a.data));
         
-        sortedSales.forEach(s => {
+        // Paginacao: 10 por pagina
+        const itemsPerPage = 10;
+        const totalPages = Math.ceil(sortedSales.length / itemsPerPage);
+        const startIdx = (state.currentReportPage - 1) * itemsPerPage;
+        const pageItems = sortedSales.slice(startIdx, startIdx + itemsPerPage);
+
+        pageItems.forEach(s => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><strong>#${s.id}</strong></td>
@@ -717,7 +873,47 @@ const renderReports = async () => {
             `;
             tbody.appendChild(tr);
         });
+
+        renderReportPagination(totalPages);
     }
+};
+
+const renderReportPagination = (totalPages) => {
+    const container = document.getElementById('reports-pagination');
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = `
+        <button class="pagination-btn" ${state.currentReportPage === 1 ? 'disabled' : ''} onclick="changeReportPage(${state.currentReportPage - 1})">
+            <i class="fas fa-chevron-left"></i> Prev
+        </button>
+        <div class="pagination-numbers">
+    `;
+
+    for (let i = 1; i <= totalPages; i++) {
+        html += `
+            <button class="pagination-btn ${i === state.currentReportPage ? 'active' : ''}" onclick="changeReportPage(${i})">
+                ${i}
+            </button>
+        `;
+    }
+
+    html += `
+        </div>
+        <button class="pagination-btn" ${state.currentReportPage === totalPages ? 'disabled' : ''} onclick="changeReportPage(${state.currentReportPage + 1})">
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
+    `;
+
+    container.innerHTML = html;
+};
+
+window.changeReportPage = (page) => {
+    state.currentReportPage = page;
+    renderReports(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 window.viewSaleDetails = (saleId) => {
@@ -728,6 +924,16 @@ window.viewSaleDetails = (saleId) => {
     document.getElementById('detail-sale-date').textContent = formatDate(sale.data);
     document.getElementById('detail-sale-customer').textContent = sale.cliente || 'Não Informado';
     document.getElementById('detail-sale-payment').textContent = sale.forma_pagamento;
+    
+    const cashInfo = document.getElementById('detail-sale-cash-info');
+    if (sale.forma_pagamento === 'DINHEIRO' && sale.valor_pago !== undefined && sale.valor_pago !== null && sale.troco !== undefined && sale.troco !== null) {
+        document.getElementById('detail-sale-received').textContent = formatMoney(Number(sale.valor_pago));
+        document.getElementById('detail-sale-change').textContent = formatMoney(Number(sale.troco));
+        cashInfo.style.display = 'inline';
+    } else {
+        cashInfo.style.display = 'none';
+    }
+
     document.getElementById('detail-sale-total').textContent = formatMoney(Number(sale.total));
 
     const tbody = document.getElementById('sale-items-body');
@@ -748,10 +954,31 @@ window.viewSaleDetails = (saleId) => {
     saleDetailsModal.classList.add('active');
 };
 
+const receiptConfigModal = document.getElementById('receipt-config-modal');
+
+window.openReceiptConfigModal = () => {
+    document.getElementById('receipt-store-name').value = state.receiptConfig.storeName;
+    document.getElementById('receipt-footer-msg').value = state.receiptConfig.footerMsg;
+    receiptConfigModal.classList.add('active');
+};
+
+document.getElementById('receipt-config-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    state.receiptConfig.storeName = document.getElementById('receipt-store-name').value;
+    state.receiptConfig.footerMsg = document.getElementById('receipt-footer-msg').value;
+    
+    // Save locally
+    localStorage.setItem('receiptConfig_' + state.currentUser.id, JSON.stringify(state.receiptConfig));
+    
+    receiptConfigModal.classList.remove('active');
+    showToast('Layout do recibo atualizado!', 'success');
+});
+
 document.querySelectorAll('.close-modal').forEach(btn => {
     btn.addEventListener('click', () => {
         saleDetailsModal.classList.remove('active');
         productModal.classList.remove('active');
+        if (receiptConfigModal) receiptConfigModal.classList.remove('active');
         if(document.getElementById('product-form')) {
            document.getElementById('product-form').reset();
            document.getElementById('prod-id').value = '';
