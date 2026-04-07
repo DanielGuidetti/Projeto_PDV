@@ -26,6 +26,7 @@
         <li><a href="#" data-route="pos" class="active"><i class="fas fa-cash-register"></i><span>PDV</span></a></li>
         <li><a href="#" data-route="products"><i class="fas fa-box-open"></i><span>Produtos</span></a></li>
         <li><a href="#" data-route="stock"><i class="fas fa-boxes"></i><span>Estoque</span></a></li>
+        <li><a href="#" data-route="encomendas"><i class="fas fa-truck-loading"></i><span>Encomendas</span></a></li>
         <li><a href="#" data-route="reports"><i class="fas fa-chart-pie"></i><span>Relatórios</span></a></li>
         <li id="nav-settings" style="display:none;"><a href="#" data-route="settings"><i class="fas fa-cog"></i><span>Configurações</span></a></li>
       </ul>
@@ -201,6 +202,7 @@
                 <button class="btn btn-primary btn-large btn-payment" data-method="DINHEIRO"><i class="fas fa-money-bill-wave"></i> DINHEIRO</button>
                 <button class="btn btn-success btn-large btn-payment" data-method="PIX" style="background: #20c997; border-color: #20c997;"><i class="fab fa-pix"></i> PIX</button>
                 <button class="btn btn-info btn-large btn-payment" data-method="CARTÃO" style="background: var(--info); border-color: var(--info); color: white;"><i class="fas fa-credit-card"></i> CARTÃO</button>
+                <button class="btn btn-warning btn-large btn-payment" data-method="ENCOMENDA" style="background: #f39c12; border-color: #f39c12; color: white;"><i class="fas fa-truck-loading"></i> ENCOMENDA</button>
               </div>
             </div>
             <div class="modal-footer" style="justify-content: center; margin-top: 1rem;">
@@ -427,6 +429,99 @@
         </div>
       </section>
 
+      <!-- ====== Encomendas Screen ====== -->
+      <section id="screen-encomendas" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Gestão de Encomendas</h2>
+            <p>Pedidos pendentes de entrega e pagamento</p>
+          </div>
+        </header>
+
+        <div class="content-container">
+          <!-- KPI Cards for Orders -->
+          <div class="kpi-grid">
+            <div class="kpi-card glass-card gradient-primary">
+              <div class="kpi-icon"><i class="fas fa-clock"></i></div>
+              <div class="kpi-data">
+                <span class="label">Encomendas Pendentes</span>
+                <h3 id="kpi-orders-count">0</h3>
+              </div>
+            </div>
+            <div class="kpi-card glass-card gradient-warning">
+              <div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div>
+              <div class="kpi-data">
+                <span class="label">Total a Receber</span>
+                <h3 id="kpi-orders-total">R$ 0,00</h3>
+              </div>
+            </div>
+            <div class="kpi-card glass-card gradient-info" style="min-width: 300px;">
+              <div class="kpi-icon"><i class="fas fa-star"></i></div>
+              <div class="kpi-data">
+                <span class="label">Itens Mais Encomendados</span>
+                <p id="kpi-top-ordered-items" style="font-size: 0.85rem; margin-top: 5px; line-height: 1.2;">Nenhum item</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card mt-4" style="padding: 1.5rem;">
+             <h3 class="section-title">Maiores Devedores</h3>
+             <div id="top-debtors-list" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <!-- Populated by JS -->
+                <p class="text-muted">Nenhum devedor registrado.</p>
+             </div>
+          </div>
+
+          <!-- Orders Table -->
+          <div class="glass-table-container mt-4">
+            <h3 class="section-title">Lista de Encomendas</h3>
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Cód.</th>
+                  <th>Data Pedido</th>
+                  <th>Cliente</th>
+                  <th>Total (R$)</th>
+                  <th>Itens</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-orders-msg" class="empty-state">
+              <i class="fas fa-truck-loading"></i>
+              <p>Nenhuma encomenda pendente.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delivery Modal -->
+        <div id="delivery-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+              <h3 style="width: 100%; text-align: center;">Finalizar Entrega</h3>
+            </div>
+            <div style="padding: 1rem 0;">
+              <p class="text-muted" style="margin-bottom: 0.5rem">Valor a Receber</p>
+              <h1 id="delivery-modal-total" class="text-success" style="font-size: 2.5rem; margin-bottom: 2rem;">R$ 0,00</h1>
+
+              <p style="margin-bottom: 1rem;">Selecione a forma de pagamento final:</p>
+              <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column;">
+                <button class="btn btn-primary btn-large btn-delivery-payment" data-method="DINHEIRO"><i class="fas fa-money-bill-wave"></i> DINHEIRO</button>
+                <button class="btn btn-success btn-large btn-delivery-payment" data-method="PIX" style="background: #20c997; border-color: #20c997;"><i class="fab fa-pix"></i> PIX</button>
+                <button class="btn btn-info btn-large btn-delivery-payment" data-method="CARTÃO" style="background: var(--info); border-color: var(--info); color: white;"><i class="fas fa-credit-card"></i> CARTÃO</button>
+              </div>
+            </div>
+            <div class="modal-footer" style="justify-content: center; margin-top: 1rem;">
+              <button type="button" class="btn btn-ghost close-delivery">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ====== Settings Screen ====== -->
       <section id="screen-settings" class="screen">
         <header class="topbar glass-bar">
@@ -532,6 +627,7 @@
         <li><a href="#" data-route="pos" class="active"><i class="fas fa-cash-register"></i><span>PDV</span></a></li>
         <li><a href="#" data-route="products"><i class="fas fa-box-open"></i><span>Produtos</span></a></li>
         <li><a href="#" data-route="stock"><i class="fas fa-boxes"></i><span>Estoque</span></a></li>
+        <li><a href="#" data-route="encomendas"><i class="fas fa-truck-loading"></i><span>Encomendas</span></a></li>
         <li><a href="#" data-route="reports"><i class="fas fa-chart-pie"></i><span>Relatórios</span></a></li>
       </ul>
     </nav>

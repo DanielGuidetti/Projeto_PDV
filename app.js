@@ -53,6 +53,25 @@ const formatDate = (date) => new Intl.DateTimeFormat('pt-BR', {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+const normalizeName = (name) => {
+    if (!name) return "";
+    return name
+        .trim()
+        .replace(/\s+/g, ' ')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase();
+};
+
+const toTitleCase = (str) => {
+    if (!str) return "";
+    const prepositions = ['de', 'da', 'do', 'dos', 'das', 'e'];
+    return str.toLowerCase().split(' ').map(word => {
+        if (prepositions.includes(word)) return word;
+        return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+};
+
 const showToast = (message, type = 'info') => {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -105,6 +124,7 @@ const navigateTo = async (routeId) => {
         if (routeId === 'screen-pos') renderPosCatalog();
         if (routeId === 'screen-reports') await renderReports();
         if (routeId === 'screen-stock') renderStockHistory();
+        if (routeId === 'screen-encomendas') await renderOrders();
     }
 };
 
@@ -639,9 +659,17 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
     checkoutBtn.disabled = true;
     checkoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finalizando...';
 
-    const total = state.cart.reduce((sum, item) => sum + (item.product.preco * item.qty), 0);
     const totalItens = state.cart.reduce((sum, item) => sum + (item.product.pesavel ? 1 : item.qty), 0);
-    const clienteName = document.getElementById('pos-customer-name')?.value.trim();
+    const total = state.cart.reduce((sum, item) => sum + (item.product.preco * item.qty), 0);
+    const clienteNameRaw = document.getElementById('pos-customer-name')?.value.trim();
+    const clienteName = normalizeName(clienteNameRaw);
+
+    if (method === 'ENCOMENDA' && !clienteName) {
+        showToast('Nome do cliente é obrigatório para encomendas.', 'error');
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = '<i class="fas fa-check-circle"></i> Finalizar Venda (F2)';
+        return;
+    }
 
     // Save Sale
     const sale = {
@@ -650,6 +678,8 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
         totalItens,
         cliente: clienteName || null,
         forma_pagamento: method,
+        status: method === 'ENCOMENDA' ? 'ENCOMENDA' : 'CONCLUIDA',
+        data_conclusao: method === 'ENCOMENDA' ? null : new Date().toISOString(),
         user_id: state.currentUser.id,
         itens: state.cart.map(item => ({
             id: item.product.id,
@@ -668,29 +698,31 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
 
         const registeredSale = saleData && saleData.length > 0 ? saleData[0] : sale;
 
-        // Deduct Stock and Record Movement
-        for (let cartItem of state.cart) {
-            const product = state.products.find(p => p.id === cartItem.product.id);
-            if (product && product.controlar_estoque !== false) {
-                const qtyVal = Number(cartItem.qty.toFixed(3));
-                const newStock = Number((product.estoque - qtyVal).toFixed(3));
-                const { error: stockError } = await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
-                if (stockError) console.error("Erro ao atualizar estoque da venda:", stockError);
-                
-                // Registra a movimentação de saída vinculada à venda
-                const newMov = {
-                    produto_id: product.id,
-                    tipo: 'SAÍDA',
-                    quantidade: qtyVal,
-                    motivo: `Venda #${registeredSale.id}`,
-                    user_id: state.currentUser.id
-                };
-                const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
-                if (movError) console.error("Erro ao inserir movimentação da venda:", movError);
+        // Deduct Stock and Record Movement (Only if NOT encomenda)
+        if (method !== 'ENCOMENDA') {
+            for (let cartItem of state.cart) {
+                const product = state.products.find(p => p.id === cartItem.product.id);
+                if (product && product.controlar_estoque !== false) {
+                    const qtyVal = Number(cartItem.qty.toFixed(3));
+                    const newStock = Number((product.estoque - qtyVal).toFixed(3));
+                    const { error: stockError } = await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                    if (stockError) console.error("Erro ao atualizar estoque da venda:", stockError);
+                    
+                    // Registra a movimentação de saída vinculada à venda
+                    const newMov = {
+                        produto_id: product.id,
+                        tipo: 'SAÍDA',
+                        quantidade: qtyVal,
+                        motivo: `Venda #${registeredSale.id}`,
+                        user_id: state.currentUser.id
+                    };
+                    const { data: movData, error: movError } = await _supabase.from('movimentacoes').insert([newMov]).select();
+                    if (movError) console.error("Erro ao inserir movimentação da venda:", movError);
 
-                if (movData && movData.length > 0) state.movimentacoes.push(movData[0]);
+                    if (movData && movData.length > 0) state.movimentacoes.push(movData[0]);
 
-                product.estoque = newStock;
+                    product.estoque = newStock;
+                }
             }
         }
 
@@ -705,9 +737,12 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
         renderCart();
         renderPosCatalog();
         
-        showToast(`Venda ${registeredSale.id || ''} finalizada com sucesso!`, 'success');
+        
+        showToast(method === 'ENCOMENDA' ? `Encomenda registrada com sucesso!` : `Venda ${registeredSale.id || ''} finalizada com sucesso!`, 'success');
 
-        printReceipt(registeredSale);
+        if (method !== 'ENCOMENDA') {
+            printReceipt(registeredSale);
+        }
         
     } catch (err) {
         showToast('Erro ao processar venda no banco.', 'error');
@@ -765,10 +800,11 @@ const printReceipt = (sale) => {
 
     let footerMessage = state.receiptConfig.footerMsg;
     if (sale.cliente && sale.cliente.trim() !== '') {
+        const displayCliente = toTitleCase(sale.cliente);
         if (footerMessage.includes('{cliente}')) {
-            footerMessage = footerMessage.replace('{cliente}', sale.cliente);
+            footerMessage = footerMessage.replace('{cliente}', displayCliente);
         } else {
-            footerMessage = `Cliente: ${sale.cliente}<br>` + footerMessage;
+            footerMessage = `Cliente: ${displayCliente}<br>` + footerMessage;
         }
     } else {
         footerMessage = footerMessage.replace('{cliente}', '').replace(' ,', ',').replace('  ', ' ').trim();
@@ -802,6 +838,180 @@ document.getElementById('btn-clear-cart').addEventListener('click', () => {
     }
 });
 
+/* ===== Modules: Encomendas ===== */
+let currentDeliveryOrderId = null;
+const deliveryModal = document.getElementById('delivery-modal');
+
+const renderOrders = async () => {
+    // Refresh data
+    await loadData();
+    
+    // Filtrar apenas encomendas (abertas)
+    const pendingOrders = state.sales.filter(s => s.status === 'ENCOMENDA');
+    
+    // KPIs
+    document.getElementById('kpi-orders-count').textContent = pendingOrders.length;
+    const totalPending = pendingOrders.reduce((sum, s) => sum + Number(s.total), 0);
+    document.getElementById('kpi-orders-total').textContent = formatMoney(totalPending);
+    
+    // Itens mais encomendados
+    const itemMap = {};
+    pendingOrders.forEach(s => {
+        s.itens.forEach(item => {
+            itemMap[item.nome] = (itemMap[item.nome] || 0) + item.qty;
+        });
+    });
+    const topItems = Object.entries(itemMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name, qty]) => `<span class="badge badge-info">${name} (${qty})</span>`)
+        .join(' ');
+    document.getElementById('kpi-top-ordered-items').innerHTML = topItems || 'Nenhum item pendente';
+
+    // Maiores devedores
+    const debtorMap = {};
+    const debtorPrettyNames = {}; // Para guardar a versão "bonita" do nome
+    
+    pendingOrders.forEach(s => {
+        if (s.cliente) {
+            const normalized = normalizeName(s.cliente);
+            debtorMap[normalized] = (debtorMap[normalized] || 0) + Number(s.total);
+            if (!debtorPrettyNames[normalized]) {
+                debtorPrettyNames[normalized] = s.cliente;
+            }
+        }
+    });
+    const topDebtorsContainer = document.getElementById('top-debtors-list');
+    const sortedDebtors = Object.entries(debtorMap).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    
+    if (sortedDebtors.length === 0) {
+        topDebtorsContainer.innerHTML = '<p class="text-muted">Nenhum devedor registrado.</p>';
+    } else {
+        topDebtorsContainer.innerHTML = sortedDebtors.map(([normalized, amount]) => `
+            <div class="debtor-card">
+                <span class="name">${toTitleCase(debtorPrettyNames[normalized])}</span>
+                <span class="amount">${formatMoney(amount)}</span>
+            </div>
+        `).join('');
+    }
+
+    // Tabela de Encomendas
+    const tbody = document.getElementById('orders-table-body');
+    const emptyMsg = document.getElementById('empty-orders-msg');
+    tbody.innerHTML = '';
+    
+    if (pendingOrders.length === 0) {
+        emptyMsg.classList.remove('hidden');
+        tbody.parentElement.classList.add('hidden');
+    } else {
+        emptyMsg.classList.add('hidden');
+        tbody.parentElement.classList.remove('hidden');
+        
+        pendingOrders.sort((a,b) => new Date(b.data) - new Date(a.data)).forEach(s => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>#${s.id}</strong></td>
+                <td><span class="text-muted">${formatDate(s.data)}</span></td>
+                <td>${toTitleCase(s.cliente)}</td>
+                <td><strong>${formatMoney(Number(s.total))}</strong></td>
+                <td><span class="text-muted">${s.itens.length} tipo(s) de item</span></td>
+                <td class="text-right">
+                    <button class="btn btn-success btn-small" onclick="openDeliveryModal('${s.id}')"><i class="fas fa-check"></i> Entregar</button>
+                    <button class="btn btn-ghost btn-small text-danger" onclick="cancelOrder('${s.id}')"><i class="fas fa-trash"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+};
+
+window.openDeliveryModal = (orderId) => {
+    const order = state.sales.find(s => String(s.id) === String(orderId));
+    if (!order) return;
+    
+    currentDeliveryOrderId = orderId;
+    document.getElementById('delivery-modal-total').textContent = formatMoney(Number(order.total));
+    deliveryModal.classList.add('active');
+};
+
+if (document.querySelector('.close-delivery')) {
+    document.querySelector('.close-delivery').addEventListener('click', () => {
+        deliveryModal.classList.remove('active');
+    });
+}
+
+document.querySelectorAll('.btn-delivery-payment').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        const method = e.currentTarget.dataset.method;
+        await finalizeDelivery(method);
+    });
+});
+
+const finalizeDelivery = async (method) => {
+    if (!currentDeliveryOrderId) return;
+    
+    const order = state.sales.find(s => String(s.id) === String(currentDeliveryOrderId));
+    if (!order) return;
+
+    try {
+        const now = new Date().toISOString();
+        const updateData = {
+            status: 'CONCLUIDA',
+            forma_pagamento: method,
+            data_conclusao: now
+        };
+
+        const { error: updateError } = await _supabase.from('vendas').update(updateData).eq('id', currentDeliveryOrderId);
+        if (updateError) throw updateError;
+
+        // Descontar estoque no momento da entrega
+        for (let item of order.itens) {
+            const product = state.products.find(p => p.id === item.id || String(p.PLU) === String(item.PLU));
+            if (product && product.controlar_estoque !== false) {
+                const qtyVal = Number(Number(item.qty).toFixed(3));
+                const newStock = Number((product.estoque - qtyVal).toFixed(3));
+                
+                await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                
+                // Registra movimentação
+                const newMov = {
+                    produto_id: product.id,
+                    tipo: 'SAÍDA',
+                    quantidade: qtyVal,
+                    motivo: `Entrega Encomenda #${order.id}`,
+                    user_id: state.currentUser.id
+                };
+                const { data: movData } = await _supabase.from('movimentacoes').insert([newMov]).select();
+                if (movData && movData.length > 0) state.movimentacoes.push(movData[0]);
+                
+                product.estoque = newStock;
+            }
+        }
+
+        showToast(`Encomenda #${order.id} entregue e finalizada com sucesso!`, 'success');
+        deliveryModal.classList.remove('active');
+        await renderOrders();
+    } catch (err) {
+        showToast('Erro ao finalizar entrega.', 'error');
+        console.error(err);
+    }
+};
+
+window.cancelOrder = async (orderId) => {
+    if (confirm('Deseja realmente cancelar esta encomenda? (A ação não pode ser desfeita)')) {
+        try {
+            const { error } = await _supabase.from('vendas').delete().eq('id', orderId);
+            if (error) throw error;
+            
+            showToast('Encomenda cancelada.', 'info');
+            await renderOrders();
+        } catch (err) {
+            showToast('Erro ao cancelar encomenda.', 'error');
+            console.error(err);
+        }
+    }
+};
+
 /* ===== Modules: Reports ===== */
 const saleDetailsModal = document.getElementById('sale-details-modal');
 
@@ -817,14 +1027,16 @@ const renderReports = async (resetPage = true) => {
     
     // Refresh to get latest DB changes
     await loadData();
-    let filteredSales = [...state.sales];
+    // Apenas vendas CONCLUIDAS aparecem no relatório de vendas
+    let filteredSales = state.sales.filter(s => s.status === 'CONCLUIDA');
     
     if (startInput || endInput) {
         const startDate = startInput ? new Date(startInput + 'T00:00:00') : new Date('2000-01-01');
         const endDate = endInput ? new Date(endInput + 'T23:59:59') : new Date('2100-01-01');
         
         filteredSales = filteredSales.filter(s => {
-            const saleDate = new Date(s.data);
+            // Usa data de conclusão para o relatório, ou data normal se nao hover conclusao (vendas diretas)
+            const saleDate = new Date(s.data_conclusao || s.data);
             return saleDate >= startDate && saleDate <= endDate;
         });
     }

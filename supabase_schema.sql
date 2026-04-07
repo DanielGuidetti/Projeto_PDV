@@ -52,8 +52,33 @@ CREATE TABLE IF NOT EXISTS public.vendas (
     cliente TEXT,
     forma_pagamento TEXT NOT NULL,
     itens JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'CONCLUIDA' CHECK (status IN ('CONCLUIDA', 'ENCOMENDA')),
+    data_conclusao TIMESTAMP WITH TIME ZONE,
+    valor_pago NUMERIC(10, 2),
+    troco NUMERIC(10, 2),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Script de Migração para tabelas existentes
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vendas' AND column_name='status') THEN
+    ALTER TABLE public.vendas ADD COLUMN status TEXT NOT NULL DEFAULT 'CONCLUIDA' CHECK (status IN ('CONCLUIDA', 'ENCOMENDA'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vendas' AND column_name='data_conclusao') THEN
+    ALTER TABLE public.vendas ADD COLUMN data_conclusao TIMESTAMP WITH TIME ZONE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vendas' AND column_name='valor_pago') THEN
+    ALTER TABLE public.vendas ADD COLUMN valor_pago NUMERIC(10, 2);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vendas' AND column_name='troco') THEN
+    ALTER TABLE public.vendas ADD COLUMN troco NUMERIC(10, 2);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vendas' AND column_name='user_id') THEN
+    ALTER TABLE public.vendas ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 
 -- 3. Criação da tabela de Movimentações (com Foreign Key)
@@ -99,6 +124,9 @@ CREATE POLICY "Permitir leitura para auth" ON public.vendas FOR SELECT USING (au
 
 DROP POLICY IF EXISTS "Permitir inserção para auth" ON public.vendas;
 CREATE POLICY "Permitir inserção para auth" ON public.vendas FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Permitir atualização para auth" ON public.vendas;
+CREATE POLICY "Permitir atualização para auth" ON public.vendas FOR UPDATE USING (auth.role() = 'authenticated');
 
 -- MOVIMENTACOES
 DROP POLICY IF EXISTS "Permitir leitura para auth" ON public.movimentacoes;

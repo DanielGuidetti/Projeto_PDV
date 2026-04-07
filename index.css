@@ -1001,15 +1001,17 @@ form input:focus {
         width: 100%;
         max-width: 80mm;
         margin: 0 auto;
+        padding: 15px;
         font-size: 12px;
         color: #000;
+        background: #fff;
     }
     
     .print-header { text-align: center; margin-bottom: 10px; }
     .print-header h1 { font-size: 16px; margin: 0 0 4px; padding: 0; }
     .print-header p { margin: 2px 0; font-size: 11px; }
     
-    .print-divider { border-top: 1px dashed #000; margin: 8px 0; }
+    .print-divider { border-top: 1px dashed #000; margin: 8px 0; border-color: #000 !important; }
     
     .print-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
     .print-item-col { display: flex; flex-direction: column; }
@@ -1020,8 +1022,6 @@ form input:focus {
 
 /* Forca estilos absolutos no div do html2pdf para capturar preto no branco fora do media query */
 #print-receipt, #print-receipt * { color: #000 !important; }
-#print-receipt { background: #fff !important; padding: 15px !important; }
-.print-divider { border-color: #000 !important; }
 
 /* ===== Pagination Styles ===== */
 .pagination-container {
@@ -1071,3 +1071,60 @@ form input:focus {
     gap: 0.4rem;
     margin: 0 0.5rem;
 }
+
+/* ===== Encomendas Screen Styles ===== */
+#top-debtors-list {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+
+.debtor-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    transition: transform var(--transition-fast);
+}
+
+.debtor-card:hover {
+    transform: translateY(-3px);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.debtor-card .name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.debtor-card .amount {
+    color: var(--warning-color);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.btn-delivery-payment {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+}
+
+.badge-encomenda {
+    background: rgba(243, 156, 18, 0.15);
+    color: #f39c12;
+}
+
+/* Specific styles for KPIs in orders */
+#kpi-top-ordered-items {
+    max-height: 60px;
+    overflow: hidden;
+}
+
