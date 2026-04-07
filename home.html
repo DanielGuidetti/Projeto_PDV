@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Styles -->
   <link rel="stylesheet" href="index.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6366f1">
 </head>
 
 <body>
@@ -641,6 +643,15 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW (Dashboard) registrado com sucesso!'))
+          .catch(err => console.log('Falha ao registrar SW (Dashboard):', err));
+      });
+    }
+  </script>
 </body>
 
 </html>
