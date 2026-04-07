@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mercearia-cache-v1';
+const CACHE_NAME = 'mercearia-cache-v2';
 const ASSETS = [
     './index.html',
     './home.html',
@@ -16,7 +16,9 @@ const EXTERNAL_ASSETS = [
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
+// Instalação do Service Worker
 self.addEventListener('install', (event) => {
+    self.skipWaiting(); // Força o novo SW a se tornar o SW atual imediatamente
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             return cache.addAll([...ASSETS, ...EXTERNAL_ASSETS]);
@@ -24,20 +26,25 @@ self.addEventListener('install', (event) => {
     );
 });
 
+// Ativação e limpeza de cache
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((name) => {
-                    if (name !== CACHE_NAME) {
-                        return caches.delete(name);
-                    }
-                })
-            );
-        })
+        Promise.all([
+            self.clients.claim(), // Permite que o novo SW tome controle das páginas imediatamente
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((name) => {
+                        if (name !== CACHE_NAME) {
+                            return caches.delete(name);
+                        }
+                    })
+                );
+            })
+        ])
     );
 });
 
+// Estratégia de Fetch: Network-First (Tenta rede, se falhar vai pro cache)
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
     
@@ -47,20 +54,20 @@ self.addEventListener('fetch', (event) => {
     }
 
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            if (response) {
-                return response;
-            }
-            return fetch(event.request).then((networkResponse) => {
-                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                    return networkResponse;
+        fetch(event.request)
+            .then((networkResponse) => {
+                // Atualiza o cache com a resposta nova da rede
+                if (networkResponse.status === 200) {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
                 }
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(event.request, responseToCache);
-                });
                 return networkResponse;
-            });
-        })
+            })
+            .catch(() => {
+                // Se a rede falhar (offline), busca no cache
+                return caches.match(event.request);
+            })
     );
 });
