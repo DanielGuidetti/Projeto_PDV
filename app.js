@@ -107,10 +107,7 @@ const navigateTo = async (routeId) => {
         navigateTo('screen-login');
         return;
     }
-    if (routeId === 'screen-settings' && state.userRole !== 'admin') {
-        showToast('Acesso negado. Apenas administradores podem acessar as configurações.', 'error');
-        return;
-    }
+    // Removida restrição de admin para configurações (Global)
     app.screens.forEach(s => s.classList.remove('active'));
     const target = document.getElementById(routeId);
     if (target) target.classList.add('active');
@@ -265,12 +262,22 @@ document.querySelectorAll('.close-modal').forEach(btn => {
 document.getElementById('product-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const prodId = document.getElementById('prod-id').value;
-    const PLU = document.getElementById('prod-code').value.trim();
+    let PLU = document.getElementById('prod-code').value.trim();
     const nome = document.getElementById('prod-name').value.trim();
     const preco = parseFloat(document.getElementById('prod-price').value);
     const estoque = parseFloat(document.getElementById('prod-stock').value) || 0;
     const pesavel = document.getElementById('prod-pesavel').checked;
     const controlar_estoque = document.getElementById('prod-control-stock').checked;
+
+    // Lógica Segura de PLU Auto-Incremental (Preenchimento de Lacunas)
+    if (!PLU && !prodId) {
+        const existingPLUs = new Set(state.products.map(p => String(p.PLU)));
+        let i = 1;
+        while (existingPLUs.has(String(i))) {
+            i++;
+        }
+        PLU = String(i);
+    }
 
     // Prevent duplicate codes locally
     if (state.products.some(p => p.PLU === PLU && String(p.id) !== prodId)) {
@@ -693,6 +700,7 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
         cliente: clienteName || null,
         forma_pagamento: method,
         status: method === 'ENCOMENDA' ? 'ENCOMENDA' : 'CONCLUIDA',
+        status_entrega: method === 'ENCOMENDA' ? 'PENDENTE' : 'ENTREGUE',
         data_conclusao: method === 'ENCOMENDA' ? null : new Date().toISOString(),
         user_id: state.currentUser.id,
         itens: state.cart.map(item => ({
@@ -703,7 +711,12 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
             qty: item.qty
         }))
     };
-    if (valorPago !== null) sale.valor_pago = valorPago;
+    if (method === 'ENCOMENDA') {
+        sale.valor_pago = 0;
+    } else {
+        if (valorPago !== null) sale.valor_pago = valorPago;
+        else sale.valor_pago = total;
+    }
     if (troco !== null) sale.troco = troco;
 
     try {
@@ -865,7 +878,7 @@ const renderOrders = async () => {
     
     // KPIs
     document.getElementById('kpi-orders-count').textContent = pendingOrders.length;
-    const totalPending = pendingOrders.reduce((sum, s) => sum + Number(s.total), 0);
+    const totalPending = pendingOrders.reduce((sum, s) => sum + (Number(s.total) - Number(s.valor_pago || 0)), 0);
     document.getElementById('kpi-orders-total').textContent = formatMoney(totalPending);
     
     // Itens mais encomendados
@@ -878,8 +891,9 @@ const renderOrders = async () => {
     const topItems = Object.entries(itemMap)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
-        .map(([name, qty]) => `<span class="badge badge-info">${name} (${qty})</span>`)
+        .map(([name, qty]) => `<span class="badge badge-kpi">${name} (${qty})</span>`)
         .join(' ');
+    
     document.getElementById('kpi-top-ordered-items').innerHTML = topItems || 'Nenhum item pendente';
 
     // Maiores devedores
@@ -889,7 +903,8 @@ const renderOrders = async () => {
     pendingOrders.forEach(s => {
         if (s.cliente) {
             const normalized = normalizeName(s.cliente);
-            debtorMap[normalized] = (debtorMap[normalized] || 0) + Number(s.total);
+            const remaining = Number(s.total) - Number(s.valor_pago || 0);
+            debtorMap[normalized] = (debtorMap[normalized] || 0) + remaining;
             if (!debtorPrettyNames[normalized]) {
                 debtorPrettyNames[normalized] = s.cliente;
             }
@@ -921,17 +936,69 @@ const renderOrders = async () => {
         emptyMsg.classList.add('hidden');
         tbody.parentElement.classList.remove('hidden');
         
-        pendingOrders.sort((a,b) => new Date(b.data) - new Date(a.data)).forEach(s => {
+        const groupedOrders = {};
+        pendingOrders.forEach(s => {
+            const clientName = s.cliente ? s.cliente.trim() : 'Sem Nome';
+            const normalized = normalizeName(clientName);
+            if (!groupedOrders[normalized]) {
+                groupedOrders[normalized] = {
+                    clientName: clientName,
+                    orders: [],
+                    totalDebt: 0,
+                    totalValue: 0,
+                    totalPaid: 0,
+                    pendingDeliveries: 0
+                };
+            }
+            groupedOrders[normalized].orders.push(s);
+            const valPago = Number(s.valor_pago || 0);
+            groupedOrders[normalized].totalValue += Number(s.total);
+            groupedOrders[normalized].totalPaid += valPago;
+            groupedOrders[normalized].totalDebt += (Number(s.total) - valPago);
+            if (!s.status_entrega || s.status_entrega === 'PENDENTE') {
+                groupedOrders[normalized].pendingDeliveries++;
+            }
+        });
+
+        Object.values(groupedOrders).sort((a,b) => b.totalDebt - a.totalDebt).forEach((group, index) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><strong>#${s.id}</strong></td>
-                <td><span class="text-muted">${formatDate(s.data)}</span></td>
-                <td>${toTitleCase(s.cliente)}</td>
-                <td><strong>${formatMoney(Number(s.total))}</strong></td>
-                <td><span class="text-muted">${s.itens.length} tipo(s) de item</span></td>
-                <td class="text-right">
-                    <button class="btn btn-success btn-small" onclick="openDeliveryModal('${s.id}')"><i class="fas fa-check"></i> Entregar</button>
-                    <button class="btn btn-ghost btn-small text-danger" onclick="cancelOrder('${s.id}')"><i class="fas fa-trash"></i></button>
+                <td colspan="6" style="padding: 0; border-bottom: none;">
+                    <div class="client-orders-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: rgba(var(--primary-color-rgb), 0.05); cursor: pointer; border-bottom: 2px solid var(--border-color);" onclick="toggleClientOrders('client-orders-${index}')">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <strong style="font-size: 1.1rem; color: var(--text-primary);">${toTitleCase(group.clientName)}</strong>
+                            <span class="badge ${group.pendingDeliveries > 0 ? 'badge-warning' : 'badge-success'}">${group.orders.length} pedido(s)</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2rem;">
+                            <div style="text-align: right;">
+                                <strong class="text-danger" style="font-size: 1.1rem;">Falta: ${formatMoney(group.totalDebt)}</strong>
+                                <br><small class="text-muted">Total Encomendado: ${formatMoney(group.totalValue)}</small>
+                            </div>
+                            <i class="fas fa-chevron-down text-muted" id="icon-client-orders-${index}"></i>
+                        </div>
+                    </div>
+                    <div id="client-orders-${index}" class="client-orders-content" style="display: none; padding: 1rem; background: rgba(0, 0, 0, 0.01);">
+                        <table class="premium-table" style="background: var(--bg-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;">
+                            <tbody>
+                                ${group.orders.sort((a,b) => new Date(b.data) - new Date(a.data)).map(s => {
+                                    const valPago = Number(s.valor_pago || 0);
+                                    const restante = Number(s.total) - valPago;
+                                    return `
+                                        <tr>
+                                            <td style="padding-left: 1.5rem;"><strong>#${s.id}</strong></td>
+                                            <td><span class="text-muted">${formatDate(s.data)}</span></td>
+                                            <td><strong>${formatMoney(Number(s.total))}</strong><br><small class="text-muted text-accent" style="font-weight: 500">${valPago > 0 ? `Pago: ${formatMoney(valPago)}<br>` : ''}Falta: ${formatMoney(restante)}</small></td>
+                                            <td><span class="badge ${s.status_entrega === 'ENTREGUE' ? 'badge-success' : 'badge-warning'}">${s.status_entrega || 'PENDENTE'}</span></td>
+                                            <td class="text-right" style="padding-right: 1.5rem;">
+                                                <button class="btn btn-ghost btn-small" onclick="viewSaleDetails('${s.id}')"><i class="fas fa-eye"></i> Detalhes</button>
+                                                ${(!s.status_entrega || s.status_entrega === 'PENDENTE') ? `<button class="btn btn-ghost btn-small text-danger" onclick="cancelOrder('${s.id}')"><i class="fas fa-trash"></i></button>` : ''}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -939,77 +1006,262 @@ const renderOrders = async () => {
     }
 };
 
-window.openDeliveryModal = (orderId) => {
+window.toggleClientOrders = (containerId) => {
+    const el = document.getElementById(containerId);
+    const icon = document.getElementById('icon-' + containerId);
+    if (!el) return;
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        if(icon) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        }
+    } else {
+        el.style.display = 'none';
+        if(icon) {
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+};
+
+window.markDelivered = async (orderId) => {
+    if (!confirm('Deseja marcar TODOS os itens restantes como entregues e abater do estoque?')) return;
+    
+    const order = state.sales.find(s => String(s.id) === String(orderId));
+    if (!order) return;
+
+    try {
+        const newItens = [...order.itens];
+        
+        for (let item of newItens) {
+            const deliveredAlready = Number(item.delivered_qty || 0);
+            const remainingToDeliver = Number(item.qty) - deliveredAlready;
+
+            if (remainingToDeliver > 0) {
+                const product = state.products.find(p => p.id === item.id || String(p.PLU) === String(item.PLU));
+                if (product && product.controlar_estoque !== false) {
+                    const qtyVal = Number(remainingToDeliver.toFixed(3));
+                    const newStock = Number((product.estoque - qtyVal).toFixed(3));
+                    
+                    await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                    
+                    await _supabase.from('movimentacoes').insert([{
+                        produto_id: product.id,
+                        tipo: 'SAÍDA',
+                        quantidade: qtyVal,
+                        motivo: `Entrega Encomenda #${order.id}`,
+                        user_id: state.currentUser.id
+                    }]);
+                    
+                    product.estoque = newStock;
+                }
+                item.delivered_qty = Number(item.qty); // Fully delivered
+            }
+        }
+
+        let newStatus = 'ENCOMENDA';
+        let dataConclusao = null;
+        if (Number(order.valor_pago || 0) >= Number(order.total)) {
+            newStatus = 'CONCLUIDA';
+            dataConclusao = new Date().toISOString();
+        }
+
+        const updateData = { status_entrega: 'ENTREGUE', status: newStatus, itens: newItens };
+        if (dataConclusao) updateData.data_conclusao = dataConclusao;
+        
+        await _supabase.from('vendas').update(updateData).eq('id', orderId);
+
+        showToast('Encomenda totalmente entregue!', 'success');
+        if (typeof saleDetailsModal !== 'undefined') saleDetailsModal.classList.remove('active');
+        await loadData(); 
+        await renderOrders();
+    } catch (err) {
+        showToast('Erro ao entregar.', 'error');
+        console.error(err);
+    }
+};
+
+window.openPartialDeliveryModal = (orderId) => {
     const order = state.sales.find(s => String(s.id) === String(orderId));
     if (!order) return;
     
     currentDeliveryOrderId = orderId;
-    document.getElementById('delivery-modal-total').textContent = formatMoney(Number(order.total));
-    deliveryModal.classList.add('active');
+    document.getElementById('partial-delivery-order-id').textContent = orderId;
+    
+    const tbody = document.getElementById('partial-delivery-items-body');
+    tbody.innerHTML = '';
+    
+    order.itens.forEach((item, index) => {
+        const deliveredAlready = Number(item.delivered_qty || 0);
+        const remainingToDeliver = Number(item.qty) - deliveredAlready;
+        
+        if (remainingToDeliver <= 0) return; // Only show items that still need delivery
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${item.nome}</strong><br><small class="text-muted">#${item.PLU}</small></td>
+            <td class="text-center"><span class="badge badge-warning">${remainingToDeliver} un.</span></td>
+            <td>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 0.25rem; background: var(--bg-color); padding: 0.25rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <button type="button" class="btn-icon text-muted" style="width: 32px; height: 32px; font-size: 0.9rem;" onclick="modifyPartialQty('partial-input-${index}', -1)"><i class="fas fa-minus"></i></button>
+                    <input type="number" step="0.001" min="0" max="${remainingToDeliver}" id="partial-input-${index}" class="input form-control partial-qty-input" data-index="${index}" style="width: 65px; text-align: center; margin: 0; padding: 0.5rem; border: none; box-shadow: none; font-weight: bold; background: transparent; color: var(--text-primary);" value="0">
+                    <button type="button" class="btn-icon text-primary" style="width: 32px; height: 32px; font-size: 0.9rem;" onclick="modifyPartialQty('partial-input-${index}', 1)"><i class="fas fa-plus"></i></button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    document.getElementById('partial-delivery-modal').classList.add('active');
 };
 
-if (document.querySelector('.close-delivery')) {
-    document.querySelector('.close-delivery').addEventListener('click', () => {
-        deliveryModal.classList.remove('active');
-    });
-}
+window.modifyPartialQty = (inputId, delta) => {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    let current = parseFloat(input.value) || 0;
+    let newValue = current + delta;
+    const max = parseFloat(input.getAttribute('max')) || Infinity;
+    const min = parseFloat(input.getAttribute('min')) || 0;
+    if (newValue > max) newValue = max;
+    if (newValue < min) newValue = min;
+    input.value = Number(newValue.toFixed(3));
+};
 
-document.querySelectorAll('.btn-delivery-payment').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-        const method = e.currentTarget.dataset.method;
-        await finalizeDelivery(method);
+document.querySelectorAll('.close-partial-delivery').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('partial-delivery-modal').classList.remove('active');
     });
 });
 
-const finalizeDelivery = async (method) => {
+document.getElementById('btn-confirm-partial-delivery')?.addEventListener('click', async () => {
     if (!currentDeliveryOrderId) return;
-    
     const order = state.sales.find(s => String(s.id) === String(currentDeliveryOrderId));
     if (!order) return;
 
     try {
-        const now = new Date().toISOString();
-        const updateData = {
-            status: 'CONCLUIDA',
-            forma_pagamento: method,
-            data_conclusao: now
-        };
-
-        const { error: updateError } = await _supabase.from('vendas').update(updateData).eq('id', currentDeliveryOrderId);
-        if (updateError) throw updateError;
-
-        // Descontar estoque no momento da entrega
-        for (let item of order.itens) {
-            const product = state.products.find(p => p.id === item.id || String(p.PLU) === String(item.PLU));
-            if (product && product.controlar_estoque !== false) {
-                const qtyVal = Number(Number(item.qty).toFixed(3));
-                const newStock = Number((product.estoque - qtyVal).toFixed(3));
+        const inputs = document.querySelectorAll('.partial-qty-input');
+        const newItens = [...order.itens];
+        let itemsDeliveredNow = 0;
+        
+        for (let input of inputs) {
+            const index = input.dataset.index;
+            const toDeliver = parseFloat(input.value) || 0;
+            if (toDeliver > 0) {
+                const item = newItens[index];
+                const product = state.products.find(p => p.id === item.id || String(p.PLU) === String(item.PLU));
                 
-                await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                if (product && product.controlar_estoque !== false) {
+                    const qtyVal = Number(toDeliver.toFixed(3));
+                    const newStock = Number((product.estoque - qtyVal).toFixed(3));
+                    await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                    await _supabase.from('movimentacoes').insert([{
+                        produto_id: product.id, type: 'SAÍDA', quantidade: qtyVal, motivo: `Entrega Parcial #${order.id}`, user_id: state.currentUser.id
+                    }]);
+                    product.estoque = newStock;
+                }
                 
-                // Registra movimentação
-                const newMov = {
-                    produto_id: product.id,
-                    tipo: 'SAÍDA',
-                    quantidade: qtyVal,
-                    motivo: `Entrega Encomenda #${order.id}`,
-                    user_id: state.currentUser.id
-                };
-                const { data: movData } = await _supabase.from('movimentacoes').insert([newMov]).select();
-                if (movData && movData.length > 0) state.movimentacoes.push(movData[0]);
-                
-                product.estoque = newStock;
+                item.delivered_qty = Number(item.delivered_qty || 0) + toDeliver;
+                itemsDeliveredNow++;
             }
         }
+        
+        if (itemsDeliveredNow === 0) {
+            showToast('Nenhuma quantidade preenchida para entrega.', 'warning');
+            return;
+        }
 
-        showToast(`Encomenda #${order.id} entregue e finalizada com sucesso!`, 'success');
-        deliveryModal.classList.remove('active');
+        const completelyDelivered = newItens.every(item => Number(item.delivered_qty || 0) >= Number(item.qty));
+        
+        let newStatusEntrega = completelyDelivered ? 'ENTREGUE' : 'PARCIAL';
+        let newStatus = 'ENCOMENDA';
+        let dataConclusao = null;
+        
+        if (completelyDelivered && Number(order.valor_pago || 0) >= Number(order.total)) {
+            newStatus = 'CONCLUIDA';
+            dataConclusao = new Date().toISOString();
+        }
+
+        const updateData = { status_entrega: newStatusEntrega, status: newStatus, itens: newItens };
+        if (dataConclusao) updateData.data_conclusao = dataConclusao;
+        
+        await _supabase.from('vendas').update(updateData).eq('id', order.id);
+
+        showToast('Entrega parcial registrada!', 'success');
+        document.getElementById('partial-delivery-modal').classList.remove('active');
+        if (typeof saleDetailsModal !== 'undefined') saleDetailsModal.classList.remove('active');
+        await loadData(); 
         await renderOrders();
     } catch (err) {
-        showToast('Erro ao finalizar entrega.', 'error');
+        showToast('Erro ao entregar.', 'error');
         console.error(err);
     }
+});
+
+window.openPaymentModal = (orderId) => {
+    const order = state.sales.find(s => String(s.id) === String(orderId));
+    if (!order) return;
+    
+    currentDeliveryOrderId = orderId;
+    const valPago = Number(order.valor_pago || 0);
+    const restante = Number(order.total) - valPago;
+    
+    document.getElementById('payment-modal-remaining').textContent = formatMoney(restante);
+    document.getElementById('payment-amount').value = restante.toFixed(2);
+    document.getElementById('payment-modal').classList.add('active');
 };
+
+document.querySelector('.close-payment')?.addEventListener('click', () => {
+    document.getElementById('payment-modal').classList.remove('active');
+});
+
+document.querySelectorAll('.btn-payment-action').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        if (!currentDeliveryOrderId) return;
+        const method = e.currentTarget.dataset.method;
+        const inputVal = parseFloat(document.getElementById('payment-amount').value);
+        if (isNaN(inputVal) || inputVal <= 0) {
+            showToast('Valor inválido', 'error');
+            return;
+        }
+        
+        const order = state.sales.find(s => String(s.id) === String(currentDeliveryOrderId));
+        if (!order) return;
+        
+        const currentPago = Number(order.valor_pago || 0);
+        const newTotalPago = currentPago + inputVal;
+        
+        try {
+            let newStatus = 'ENCOMENDA';
+            let dataConclusao = null;
+            if (newTotalPago >= Number(order.total) && order.status_entrega === 'ENTREGUE') {
+                newStatus = 'CONCLUIDA';
+                dataConclusao = new Date().toISOString();
+            }
+
+            const updateData = { 
+                valor_pago: newTotalPago, 
+                forma_pagamento: method,
+                status: newStatus
+            };
+            if (dataConclusao) updateData.data_conclusao = dataConclusao;
+            
+            await _supabase.from('vendas').update(updateData).eq('id', order.id);
+            
+            showToast('Pagamento registrado!', 'success');
+            document.getElementById('payment-modal').classList.remove('active');
+            if (typeof saleDetailsModal !== 'undefined') saleDetailsModal.classList.remove('active');
+            
+            // Reload global data because reports might need this concluded sale!
+            await loadData();
+            await renderOrders();
+        } catch (err) {
+            showToast('Erro ao receber.', 'error');
+            console.error(err);
+        }
+    });
+});
+
 
 window.cancelOrder = async (orderId) => {
     if (confirm('Deseja realmente cancelar esta encomenda? (A ação não pode ser desfeita)')) {
@@ -1041,8 +1293,8 @@ const renderReports = async (resetPage = true) => {
     
     // Refresh to get latest DB changes
     await loadData();
-    // Apenas vendas CONCLUIDAS aparecem no relatório de vendas
-    let filteredSales = state.sales.filter(s => s.status === 'CONCLUIDA');
+    // Vendas CONCLUIDAS e CANCELADAS aparecem no relatório de vendas
+    let filteredSales = state.sales.filter(s => s.status === 'CONCLUIDA' || s.status === 'CANCELADA');
     
     if (startInput || endInput) {
         const startDate = startInput ? new Date(startInput + 'T00:00:00') : new Date('2000-01-01');
@@ -1055,8 +1307,10 @@ const renderReports = async (resetPage = true) => {
         });
     }
 
-    const totalSalesNum = filteredSales.length;
-    const revenue = filteredSales.reduce((sum, s) => sum + Number(s.total), 0);
+    // KPIs consideram apenas vendas efetivadas (CONCLUIDA)
+    const concludedSales = filteredSales.filter(s => s.status === 'CONCLUIDA');
+    const totalSalesNum = concludedSales.length;
+    const revenue = concludedSales.reduce((sum, s) => sum + Number(s.total), 0);
     const avgTicket = totalSalesNum > 0 ? revenue / totalSalesNum : 0;
 
     document.getElementById('kpi-total-sales').textContent = totalSalesNum;
@@ -1091,10 +1345,15 @@ const renderReports = async (resetPage = true) => {
                 <td><strong>#${s.id}</strong></td>
                 <td><span class="text-muted"><i class="far fa-clock"></i> ${formatDate(s.data)}</span></td>
                 <td>${s.cliente || '-'}</td>
-                <td><span class="badge ${s.forma_pagamento === 'PIX' ? 'badge-success' : s.forma_pagamento === 'CARTÃO' ? 'badge-info' : 'badge-warning'}">${s.forma_pagamento}</span></td>
+                <td>
+                    <span class="badge ${s.status === 'CANCELADA' ? 'badge-danger' : (s.forma_pagamento === 'PIX' ? 'badge-success' : s.forma_pagamento === 'CARTÃO' ? 'badge-info' : 'badge-warning')}">
+                        ${s.status === 'CANCELADA' ? 'CANCELADA' : s.forma_pagamento}
+                    </span>
+                </td>
                 <td><strong>${formatMoney(Number(s.total))}</strong></td>
                 <td class="text-right">
                     <button class="btn btn-ghost btn-small" onclick="viewSaleDetails('${s.id}')"><i class="fas fa-eye"></i> Detalhes</button>
+                    ${s.status !== 'CANCELADA' ? `<button class="btn btn-ghost btn-small text-danger" onclick="cancelSale('${s.id}')"><i class="fas fa-trash"></i></button>` : ''}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -1149,10 +1408,12 @@ window.viewSaleDetails = (saleId) => {
     document.getElementById('detail-sale-id').textContent = `#${sale.id}`;
     document.getElementById('detail-sale-date').textContent = formatDate(sale.data);
     document.getElementById('detail-sale-customer').textContent = sale.cliente || 'Não Informado';
-    document.getElementById('detail-sale-payment').textContent = sale.forma_pagamento;
+    document.getElementById('detail-sale-payment').textContent = sale.status === 'CANCELADA' ? 'CANCELADA' : sale.forma_pagamento;
+    const badgesHtml = sale.status === 'ENCOMENDA' ? `<span class="badge ${sale.status_entrega==='ENTREGUE'?'badge-success':'badge-warning'}">${sale.status_entrega||'PENDENTE'}</span> <span class="badge badge-danger" style="background: rgba(var(--danger-color-rgb), 0.15); color: var(--danger-color); border: 1px solid rgba(var(--danger-color-rgb), 0.3);">Falta ${formatMoney(Number(sale.total) - Number(sale.valor_pago||0))}</span>` : '';
+    document.getElementById('detail-sale-badges').innerHTML = badgesHtml;
     
     const cashInfo = document.getElementById('detail-sale-cash-info');
-    if (sale.forma_pagamento === 'DINHEIRO' && sale.valor_pago !== undefined && sale.valor_pago !== null && sale.troco !== undefined && sale.troco !== null) {
+    if (sale.forma_pagamento === 'DINHEIRO' && sale.valor_pago !== undefined && sale.valor_pago !== null && sale.troco !== undefined && sale.troco !== null && sale.status !== 'ENCOMENDA') {
         document.getElementById('detail-sale-received').textContent = formatMoney(Number(sale.valor_pago));
         document.getElementById('detail-sale-change').textContent = formatMoney(Number(sale.troco));
         cashInfo.style.display = 'inline';
@@ -1167,18 +1428,130 @@ window.viewSaleDetails = (saleId) => {
 
     sale.itens.forEach(item => {
         const subtotal = item.qty * item.preco;
+        const delivered = item.delivered_qty || 0;
+        const remaining = item.qty - delivered;
+        const progressHtml = sale.status === 'ENCOMENDA' ? `<br><small class="${remaining <= 0 ? 'text-success' : 'text-warning'}">Entregue: ${delivered} / ${item.qty}</small>` : '';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${item.nome}</strong><br><small class="text-muted">#${item.PLU}</small></td>
             <td>${formatMoney(item.preco)}</td>
-            <td>${item.qty} un.</td>
+            <td>${item.qty} un.${progressHtml}</td>
             <td class="text-right font-weight-bold">${formatMoney(subtotal)}</td>
         `;
         tbody.appendChild(tr);
     });
 
+    const btnCancel = document.getElementById('btn-cancel-sale');
+    const btnDeliver = document.getElementById('btn-deliver-order');
+    const btnPay = document.getElementById('btn-pay-order');
+    
+    if (btnCancel) {
+        if (sale.status === 'CANCELADA' || sale.status === 'ENCOMENDA') {
+            btnCancel.style.display = 'none';
+        } else {
+            btnCancel.style.display = 'flex';
+            btnCancel.dataset.id = sale.id;
+        }
+    }
+
+    const btnDeliverPartial = document.getElementById('btn-deliver-partial');
+    
+    if (btnDeliver) {
+        if (sale.status === 'ENCOMENDA' && (!sale.status_entrega || sale.status_entrega === 'PENDENTE' || sale.status_entrega === 'PARCIAL')) {
+            btnDeliver.style.display = 'flex';
+            btnDeliver.dataset.id = sale.id;
+        } else {
+            btnDeliver.style.display = 'none';
+        }
+    }
+
+    if (btnDeliverPartial) {
+        if (sale.status === 'ENCOMENDA' && (!sale.status_entrega || sale.status_entrega === 'PENDENTE' || sale.status_entrega === 'PARCIAL')) {
+            btnDeliverPartial.style.display = 'flex';
+            btnDeliverPartial.dataset.id = sale.id;
+        } else {
+            btnDeliverPartial.style.display = 'none';
+        }
+    }
+
+    if (btnPay) {
+        if (sale.status === 'ENCOMENDA' && Number(sale.valor_pago || 0) < Number(sale.total)) {
+            btnPay.style.display = 'flex';
+            btnPay.dataset.id = sale.id;
+        } else {
+            btnPay.style.display = 'none';
+        }
+    }
+
     saleDetailsModal.classList.add('active');
 };
+
+window.cancelSale = async (saleId) => {
+    if (!confirm('Deseja realmente CANCELAR esta venda? O estoque será devolvido automaticamente.')) return;
+
+    try {
+        const sale = state.sales.find(s => String(s.id) === String(saleId));
+        if (!sale) return;
+
+        showToast('Cancelando venda...', 'info');
+
+        // 1. Marcar venda como cancelada
+        const { error: saleError } = await _supabase
+            .from('vendas')
+            .update({ status: 'CANCELADA' })
+            .eq('id', saleId);
+
+        if (saleError) throw saleError;
+
+        // 2. Devolver estoque e registrar movimentação
+        for (const item of sale.itens) {
+            const product = state.products.find(p => p.PLU === item.PLU);
+            if (product && product.controlar_estoque) {
+                const newStock = Number(product.estoque) + Number(item.qty);
+                
+                // Atualizar estoque
+                await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+                
+                // Registrar movimento de entrada (estorno)
+                await _supabase.from('movimentacoes').insert({
+                    produto_id: product.id,
+                    tipo: 'ENTRADA',
+                    quantidade: item.qty,
+                    motivo: `ESTORNO (VENDA #${saleId} CANCELADA)`,
+                    user_id: state.currentUser.id
+                });
+            }
+        }
+
+        showToast('Venda cancelada e estoque devolvido!', 'success');
+        saleDetailsModal.classList.remove('active');
+        await loadData();
+        renderReports();
+    } catch (error) {
+        console.error('Erro ao cancelar venda:', error);
+        showToast('Erro ao cancelar venda.', 'error');
+    }
+};
+
+document.getElementById('btn-cancel-sale')?.addEventListener('click', (e) => {
+    const saleId = e.currentTarget.dataset.id;
+    if (saleId) cancelSale(saleId);
+});
+
+document.getElementById('btn-deliver-order')?.addEventListener('click', (e) => {
+    const saleId = e.currentTarget.dataset.id;
+    if (saleId) markDelivered(saleId);
+});
+
+document.getElementById('btn-deliver-partial')?.addEventListener('click', (e) => {
+    const saleId = e.currentTarget.dataset.id;
+    if (saleId) openPartialDeliveryModal(saleId);
+});
+
+document.getElementById('btn-pay-order')?.addEventListener('click', (e) => {
+    const saleId = e.currentTarget.dataset.id;
+    if (saleId) openPaymentModal(saleId);
+});
 
 const receiptConfigModal = document.getElementById('receipt-config-modal');
 

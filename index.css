@@ -1135,6 +1135,44 @@ form input:focus {
     font-size: 1.1rem;
 }
 
+/* ===== Encomendas Screen Styles ===== */
+.ordered-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.8rem;
+}
+
+.ordered-item {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 0.8rem;
+    border-radius: var(--radius-sm);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: white;
+    transition: transform 0.2s ease;
+}
+
+.ordered-item:hover {
+    background: rgba(0, 0, 0, 0.35);
+    transform: translateX(3px);
+}
+
+.ordered-item .name {
+    font-weight: 500;
+}
+
+.badge-kpi {
+    background: rgba(0, 0, 0, 0.35);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: inline-block;
+    margin: 2px;
+}
+
 .btn-delivery-payment {
     text-transform: uppercase;
     letter-spacing: 1px;

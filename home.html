@@ -95,7 +95,7 @@
               <div class="form-grid">
                 <div class="input-group">
                   <label>Código de Barras</label>
-                  <input type="text" id="prod-code" required placeholder="Ex: 789100...">
+                  <input type="text" id="prod-code" placeholder="Ex: 789100... (Vazio para auto-incremental)">
                 </div>
                 <div class="input-group">
                   <label>Nome do Produto</label>
@@ -318,43 +318,6 @@
           </div>
         </div>
 
-        <!-- Sale Details Modal -->
-        <div id="sale-details-modal" class="modal">
-          <div class="modal-backdrop"></div>
-          <div class="modal-content glass-card form-modal" style="max-width: 600px;">
-            <div class="modal-header">
-              <h3>Detalhes da Venda <span id="detail-sale-id" class="text-accent"></span></h3>
-              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="sale-info" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 0.9rem;">
-              <span>
-                <i class="far fa-clock"></i> <span id="detail-sale-date"></span><br><br>
-                <strong>Cliente:</strong> <span id="detail-sale-customer"></span><br>
-                <strong>Pgto:</strong> <span id="detail-sale-payment"></span>
-                <span id="detail-sale-cash-info" style="display: none;"><br><strong>Recebido:</strong> <span id="detail-sale-received"></span> | <strong>Troco:</strong> <span id="detail-sale-change"></span></span>
-              </span>
-              <span style="text-align: right;"><strong>Total:</strong><br><span id="detail-sale-total" class="text-success" style="font-size: 1.5rem; font-weight: bold;"></span></span>
-            </div>
-            <div class="glass-table-container">
-              <table class="premium-table" style="font-size: 0.9rem;">
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Preço Un.</th>
-                    <th>Qtd.</th>
-                    <th class="text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody id="sale-items-body">
-                  <!-- Populated by JS -->
-                </tbody>
-              </table>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-primary close-modal">Fechar</button>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- ====== Inventory Management Screen ====== -->
@@ -499,29 +462,6 @@
           </div>
         </div>
 
-        <!-- Delivery Modal -->
-        <div id="delivery-modal" class="modal">
-          <div class="modal-backdrop"></div>
-          <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
-            <div class="modal-header" style="justify-content: center;">
-              <h3 style="width: 100%; text-align: center;">Finalizar Entrega</h3>
-            </div>
-            <div style="padding: 1rem 0;">
-              <p class="text-muted" style="margin-bottom: 0.5rem">Valor a Receber</p>
-              <h1 id="delivery-modal-total" class="text-success" style="font-size: 2.5rem; margin-bottom: 2rem;">R$ 0,00</h1>
-
-              <p style="margin-bottom: 1rem;">Selecione a forma de pagamento final:</p>
-              <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column;">
-                <button class="btn btn-primary btn-large btn-delivery-payment" data-method="DINHEIRO"><i class="fas fa-money-bill-wave"></i> DINHEIRO</button>
-                <button class="btn btn-success btn-large btn-delivery-payment" data-method="PIX"><i class="fab fa-pix"></i> PIX</button>
-                <button class="btn btn-info btn-large btn-delivery-payment" data-method="CARTÃO"><i class="fas fa-credit-card"></i> CARTÃO</button>
-              </div>
-            </div>
-            <div class="modal-footer" style="justify-content: center; margin-top: 1rem;">
-              <button type="button" class="btn btn-ghost close-delivery">Cancelar</button>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- ====== Settings Screen ====== -->
@@ -621,6 +561,107 @@
 
       </section>
 
+      <!-- Globally accessible modals -->
+      <!-- Sale Details Modal -->
+      <div id="sale-details-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 600px;">
+          <div class="modal-header">
+            <h3>Detalhes da Venda <span id="detail-sale-id" class="text-accent"></span> <span id="detail-sale-badges" style="margin-left: 0.5rem; font-size: 0.8rem; vertical-align: middle;"></span></h3>
+            <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="sale-info" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 0.9rem;">
+            <span>
+              <i class="far fa-clock"></i> <span id="detail-sale-date"></span><br><br>
+              <strong>Cliente:</strong> <span id="detail-sale-customer"></span><br>
+              <strong>Pgto:</strong> <span id="detail-sale-payment"></span>
+              <span id="detail-sale-cash-info" style="display: none;"><br><strong>Recebido:</strong> <span id="detail-sale-received"></span> | <strong>Troco:</strong> <span id="detail-sale-change"></span></span>
+            </span>
+            <span style="text-align: right;"><strong>Total:</strong><br><span id="detail-sale-total" class="text-success" style="font-size: 1.5rem; font-weight: bold;"></span></span>
+          </div>
+          <div class="glass-table-container">
+            <table class="premium-table" style="font-size: 0.9rem;">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Preço Un.</th>
+                  <th>Qtd.</th>
+                  <th class="text-right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody id="sale-items-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-footer" style="justify-content: space-between;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button type="button" id="btn-cancel-sale" class="btn btn-danger" style="background: var(--danger-color); display: none;"><i class="fas fa-trash-alt"></i> Cancelar Venda</button>
+              <button type="button" id="btn-deliver-partial" class="btn btn-warning" style="display: none; color: #fff;"><i class="fas fa-box-open"></i> Entregar Parcial</button>
+              <button type="button" id="btn-deliver-order" class="btn btn-primary" style="display: none;"><i class="fas fa-truck"></i> Entregar (Tudo)</button>
+              <button type="button" id="btn-pay-order" class="btn btn-success" style="display: none;"><i class="fas fa-check"></i> Quitar Débito</button>
+            </div>
+            <button type="button" class="btn btn-primary close-modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partial Delivery Modal -->
+      <div id="partial-delivery-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 600px;">
+          <div class="modal-header">
+            <h3>Entregar Parcial <span id="partial-delivery-order-id" class="text-accent"></span></h3>
+            <button class="btn-icon close-partial-delivery"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="glass-table-container mt-2">
+            <table class="premium-table" style="font-size: 0.9rem;">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th class="text-center">Falta Entregar</th>
+                  <th width="150px">Entregar Agora</th>
+                </tr>
+              </thead>
+              <tbody id="partial-delivery-items-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-footer" style="justify-content: flex-end;">
+            <button type="button" class="btn btn-ghost close-partial-delivery">Cancelar</button>
+            <button type="button" id="btn-confirm-partial-delivery" class="btn btn-primary"><i class="fas fa-check"></i> Confirmar Entrega</button>
+          </div>
+        </div>
+      </div>
+      <!-- Payment Modal -->
+      <div id="payment-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+          <div class="modal-header" style="justify-content: center;">
+            <h3 style="width: 100%; text-align: center;">Receber Pagamento</h3>
+          </div>
+          <div style="padding: 1rem 0;">
+            <p class="text-muted" style="margin-bottom: 0.5rem">Falta Receber</p>
+            <h1 id="payment-modal-remaining" class="text-success" style="font-size: 2.5rem; margin-bottom: 1rem;">R$ 0,00</h1>
+
+            <div class="input-group" style="text-align: left; margin-bottom: 1.5rem;">
+              <label>Valor a Abater (R$)</label>
+              <input type="number" step="0.01" id="payment-amount" placeholder="0.00" style="font-size: 1.5rem; padding: 1rem; border-radius: 8px;">
+            </div>
+
+            <p style="margin-bottom: 1rem;">Confirmar recebimento em:</p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column;">
+              <button class="btn btn-primary btn-large btn-payment-action" data-method="DINHEIRO"><i class="fas fa-money-bill-wave"></i> DINHEIRO</button>
+              <button class="btn btn-success btn-large btn-payment-action" data-method="PIX"><i class="fab fa-pix"></i> PIX</button>
+              <button class="btn btn-info btn-large btn-payment-action" data-method="CARTÃO"><i class="fas fa-credit-card"></i> CARTÃO</button>
+            </div>
+          </div>
+          <div class="modal-footer" style="justify-content: center; margin-top: 1rem;">
+            <button type="button" class="btn btn-ghost close-payment">Cancelar</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Mobile Navigation Bar (Visible only on small screens via CSS) -->
