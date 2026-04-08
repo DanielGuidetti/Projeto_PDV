@@ -874,7 +874,12 @@ const renderOrders = async () => {
     await loadData();
     
     // Filtrar apenas encomendas (abertas)
-    const pendingOrders = state.sales.filter(s => s.status === 'ENCOMENDA');
+    const searchClient = (document.getElementById('search-orders-client')?.value || '').trim().toLowerCase();
+    const pendingOrders = state.sales.filter(s => {
+        if (s.status !== 'ENCOMENDA') return false;
+        if (searchClient && !(s.cliente || '').toLowerCase().includes(searchClient)) return false;
+        return true;
+    });
     
     // KPIs
     document.getElementById('kpi-orders-count').textContent = pendingOrders.length;
@@ -1285,16 +1290,33 @@ document.getElementById('btn-filter-reports').addEventListener('click', () => {
     renderReports();
 });
 
+document.getElementById('filter-report-client')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') renderReports();
+});
+
+let debounceOrdersTimer;
+document.getElementById('search-orders-client')?.addEventListener('input', () => {
+    clearTimeout(debounceOrdersTimer);
+    debounceOrdersTimer = setTimeout(() => {
+        renderOrders();
+    }, 600);
+});
+
 const renderReports = async (resetPage = true) => {
     if (resetPage) state.currentReportPage = 1;
 
     const startInput = document.getElementById('filter-date-start').value;
     const endInput = document.getElementById('filter-date-end').value;
+    const searchClient = (document.getElementById('filter-report-client')?.value || '').trim().toLowerCase();
     
     // Refresh to get latest DB changes
     await loadData();
     // Vendas CONCLUIDAS e CANCELADAS aparecem no relatório de vendas
     let filteredSales = state.sales.filter(s => s.status === 'CONCLUIDA' || s.status === 'CANCELADA');
+    
+    if (searchClient) {
+        filteredSales = filteredSales.filter(s => (s.cliente || '').toLowerCase().includes(searchClient));
+    }
     
     if (startInput || endInput) {
         const startDate = startInput ? new Date(startInput + 'T00:00:00') : new Date('2000-01-01');

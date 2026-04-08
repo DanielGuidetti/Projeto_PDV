@@ -430,7 +430,7 @@ nav#sidebar.hidden { display: none; }
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
-form input:not(.input-icon input) {
+.form-control, .input-group input:not([type="checkbox"]), form input:not(.input-icon input) {
     width: 100%;
     padding: 0.8rem 1rem;
     background: rgba(15, 23, 42, 0.4);
@@ -441,7 +441,7 @@ form input:not(.input-icon input) {
     outline: none;
     transition: all var(--transition-normal);
 }
-form input:focus {
+.form-control:focus, .input-group input:not([type="checkbox"]):focus, form input:focus {
     border-color: var(--accent-color);
     background: rgba(15, 23, 42, 0.6);
 }

@@ -249,7 +249,11 @@
             <h2>Relatório de Vendas</h2>
             <p>Acompanhamento de receita e transações</p>
           </div>
-          <div class="report-filters glass-element" style="display: flex; gap: 1rem; padding: 0.5rem 1rem; align-items: center;">
+          <div class="report-filters glass-element" style="display: flex; gap: 1rem; padding: 0.5rem 1rem; align-items: center; flex-wrap: wrap;">
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Buscar Cliente</label>
+              <input type="text" id="filter-report-client" placeholder="Nome do cliente" style="padding: 0.4rem 0.8rem; min-width: 150px;">
+            </div>
             <div class="input-group" style="margin-bottom: 0;">
               <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Data Inicial</label>
               <input type="date" id="filter-date-start" style="padding: 0.4rem 0.8rem;">
@@ -400,6 +404,10 @@
           <div class="topbar-title">
             <h2>Gestão de Encomendas</h2>
             <p>Pedidos pendentes de entrega e pagamento</p>
+          </div>
+          <div class="search-wrapper glass-element" style="min-width: 280px; padding: 0.5rem 1rem;">
+            <i class="fas fa-search text-muted"></i>
+            <input type="text" id="search-orders-client" placeholder="Buscar cliente...">
           </div>
         </header>
 
