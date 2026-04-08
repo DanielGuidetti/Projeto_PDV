@@ -1,14 +1,19 @@
-const _supabase = supabase.createClient('https://vbjtdgjdyducsfzrvsxn.supabase.co', 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw', {
+// Seleção automática de Ambiente (Homologação vs Produção)
+const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
+const supabaseUrl = isProd 
+    ? 'https://ljuonnxlpwrrpoiezwyk.supabase.co' 
+    : 'https://vbjtdgjdyducsfzrvsxn.supabase.co';
+
+const supabaseKey = isProd 
+    ? 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK' 
+    : 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw';
+
+const _supabase = supabase.createClient(supabaseUrl, supabaseKey, {
     auth: {
-        storageKey: 'mercearia_auth_session' // HOMOLOGAÇÃO
+        storageKey: 'mercearia_auth_session'
     }
 });
-
-/*const _supabase = supabase.createClient('https://ljuonnxlpwrrpoiezwyk.supabase.co', 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK', {
-    auth: {
-        storageKey: 'mercearia_auth_session' // PRODUÇÃO
-    }
-});*/
 
 const app = {
     screens: document.querySelectorAll('.screen'),

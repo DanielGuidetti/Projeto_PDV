@@ -21,17 +21,22 @@ try {
     });
 } catch(e) {}
 
-const _supabase = supabase.createClient('https://vbjtdgjdyducsfzrvsxn.supabase.co', 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw', {
+// Seleção automática de Ambiente (Homologação vs Produção)
+const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
+const supabaseUrl = isProd 
+    ? 'https://ljuonnxlpwrrpoiezwyk.supabase.co' 
+    : 'https://vbjtdgjdyducsfzrvsxn.supabase.co';
+
+const supabaseKey = isProd 
+    ? 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK' 
+    : 'sb_publishable_ue0z_icioGphdp0TiE5zog_xGjyy9lw';
+
+const _supabase = supabase.createClient(supabaseUrl, supabaseKey, {
     auth: {
-        storageKey: 'mercearia_auth_session' // HOMOLOGAÇÃO
+        storageKey: 'mercearia_auth_session'
     }
 });
-
-/*const _supabase = supabase.createClient('https://ljuonnxlpwrrpoiezwyk.supabase.co', 'sb_publishable_n8OsbUrccQQcm1VselnSBw_MoOPbeeK', {
-    auth: {
-        storageKey: 'mercearia_auth_session' // PRODUÇÃO
-    }
-});*/
 
 /* ===== DOM Elements ===== */
 const app = {
@@ -138,18 +143,27 @@ app.navLinks.forEach(link => {
 /* ===== Data Loading ===== */
 const loadData = async () => {
     try {
-        const storedConfig = localStorage.getItem('receiptConfig_' + state.currentUser.id);
-        if (storedConfig) {
-            state.receiptConfig = JSON.parse(storedConfig);
+        // Buscar Configuração da Loja (Global ID 1)
+        const { data: storeConfig } = await _supabase.from('store_configs').select('*').eq('id', 1).single();
+        if (storeConfig) {
+            state.receiptConfig.storeName = storeConfig.nome_loja;
+            state.receiptConfig.footerMsg = storeConfig.rodape_recibo;
+            state.receiptConfig.address = storeConfig.endereco;
         }
 
-        const { data: produtos } = await _supabase.from('produtos').select('*').eq('user_id', state.currentUser.id);
+        // Buscar Configuração de Balança (Global ID 1)
+        const { data: scaleData } = await _supabase.from('scale_configs').select('*').eq('id', 1).single();
+        if (scaleData) {
+            state.scaleConfig = scaleData;
+        }
+
+        const { data: produtos } = await _supabase.from('produtos').select('*');
         if (produtos) state.products = produtos;
         
-        const { data: vendas } = await _supabase.from('vendas').select('*').eq('user_id', state.currentUser.id);
+        const { data: vendas } = await _supabase.from('vendas').select('*');
         if (vendas) state.sales = vendas;
 
-        const { data: movs } = await _supabase.from('movimentacoes').select('*').eq('user_id', state.currentUser.id);
+        const { data: movs } = await _supabase.from('movimentacoes').select('*');
         if (movs) state.movimentacoes = movs;
     } catch (e) {
         console.error('Erro ao carregar dados do Supabase:', e);
@@ -1174,16 +1188,28 @@ window.openReceiptConfigModal = () => {
     receiptConfigModal.classList.add('active');
 };
 
-document.getElementById('receipt-config-form')?.addEventListener('submit', (e) => {
+document.getElementById('receipt-config-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    state.receiptConfig.storeName = document.getElementById('receipt-store-name').value;
-    state.receiptConfig.footerMsg = document.getElementById('receipt-footer-msg').value;
+    const newConfig = {
+        id: 1,
+        nome_loja: document.getElementById('receipt-store-name').value,
+        rodape_recibo: document.getElementById('receipt-footer-msg').value,
+        updated_at: new Date().toISOString()
+    };
     
-    // Save locally
-    localStorage.setItem('receiptConfig_' + state.currentUser.id, JSON.stringify(state.receiptConfig));
-    
-    receiptConfigModal.classList.remove('active');
-    showToast('Layout do recibo atualizado!', 'success');
+    try {
+        const { error } = await _supabase.from('store_configs').upsert(newConfig);
+        if (error) throw error;
+        
+        state.receiptConfig.storeName = newConfig.nome_loja;
+        state.receiptConfig.footerMsg = newConfig.rodape_recibo;
+        
+        receiptConfigModal.classList.remove('active');
+        showToast('Configuração global do recibo atualizada!', 'success');
+    } catch (err) {
+        console.error(err);
+        showToast('Erro ao salvar configuração global.', 'error');
+    }
 });
 
 document.querySelectorAll('.close-modal').forEach(btn => {
@@ -1339,22 +1365,22 @@ document.querySelectorAll('#scale-config-modal .close-modal').forEach(btn => {
 document.getElementById('scale-config-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const config = {
+        id: 1, // ID global
         prefix_length: parseInt(document.getElementById('scale-prefix-len').value),
         plu_length: parseInt(document.getElementById('scale-plu-len').value),
         value_length: parseInt(document.getElementById('scale-val-len').value),
-        value_type: document.getElementById('scale-val-type').value,
-        user_id: state.currentUser.id
+        value_type: document.getElementById('scale-val-type').value
     };
 
     try {
-        const { error } = await _supabase.from('scale_configs').upsert(config, { onConflict: 'user_id' });
+        const { error } = await _supabase.from('scale_configs').upsert(config);
         if (error) throw error;
         state.scaleConfig = config;
-        showToast('Configuração salva com sucesso!', 'success');
+        showToast('Configuração global da balança salva!', 'success');
         scaleModal.classList.remove('active');
     } catch(err) {
         console.error(err);
-        showToast('Erro ao salvar configurações.', 'error');
+        showToast('Erro ao salvar configurações globais.', 'error');
     }
 });
 
@@ -1376,21 +1402,14 @@ document.getElementById('scale-config-form')?.addEventListener('submit', async (
         state.userRole = roleData.role;
     }
 
-    // Buscar Configuração de Balança
-    const { data: scaleData } = await _supabase.from('scale_configs').select('*').eq('user_id', session.user.id).single();
-    if (scaleData) {
-        state.scaleConfig = scaleData;
-    }
-
     const userEmail = session.user.email;
     const displayName = state.userRole === 'admin' ? `${userEmail} (Admin)` : `${userEmail} (Caixa)`;
     app.usernameDisplay.textContent = displayName.length > 22 ? displayName.substring(0, 22) + '...' : displayName;
     app.usernameDisplay.title = displayName;
 
-    if (state.userRole === 'admin') {
-        const navSettings = document.getElementById('nav-settings');
-        if (navSettings) navSettings.style.display = 'flex';
-    }
+    // Mostrar menu de configurações para todos (Global)
+    const navSettings = document.getElementById('nav-settings');
+    if (navSettings) navSettings.style.display = 'flex';
 
     await loadData();
     navigateTo('screen-pos');
