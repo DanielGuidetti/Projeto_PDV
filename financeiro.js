@@ -65,12 +65,34 @@ document.querySelectorAll('.close-modal').forEach(btn => {
     });
 });
 
+// Auto-switch tipo de transação baseado na categoria
+document.getElementById('trans-category').addEventListener('change', (e) => {
+    const val = e.target.value;
+    const typeSelect = document.getElementById('trans-type');
+    
+    const despesasCats = ['FORNECEDOR', 'CONTAS', 'MANUTENCAO', 'IMPOSTOS'];
+    const receitasCats = ['SERVICOS', 'RENDIMENTO', 'APORTE'];
+    
+    if (despesasCats.includes(val)) {
+        typeSelect.value = 'DESPESA';
+    } else if (receitasCats.includes(val)) {
+        typeSelect.value = 'RECEITA';
+    }
+    
+    if(val) {
+        // Visual feedback animation
+        typeSelect.classList.remove('anim-flash');
+        void typeSelect.offsetWidth; // trigger reflow
+        typeSelect.classList.add('anim-flash');
+    }
+});
+
 // Load Data
 const loadData = async () => {
     try {
         const customFilter = document.getElementById('filter-month').value; // YYYY-MM
         
-        let vendasQuery = _supabase.from('vendas').select('id, data, total, status').eq('status', 'CONCLUIDA');
+        let vendasQuery = _supabase.from('vendas').select('id, data, total, status, itens').eq('status', 'CONCLUIDA');
         let transQuery = _supabase.from('movimentacoes_financeiras').select('*');
 
         if (customFilter) {
@@ -243,6 +265,73 @@ const renderDashboard = () => {
     });
     if(individualExpenses.length === 0) topList.innerHTML = '<p class="text-muted">Nenhum gasto individual registrado.</p>';
 
+    // --- TAB MARGEM: Análise de Margem por Produto ---
+    let totalMarginRevenue = 0;
+    let totalMarginCost = 0;
+    const marginProducts = {};
+
+    appState.vendas.forEach(v => {
+        if (!v.itens) return;
+        let itens = [];
+        try {
+            itens = typeof v.itens === 'string' ? JSON.parse(v.itens) : v.itens;
+        } catch(e) {}
+        
+        itens.forEach(item => {
+            if (item.custo !== null && item.custo !== undefined && Number(item.custo) > 0) {
+                const qty = Number(item.qty);
+                const r = Number(item.preco) * qty;
+                const c = Number(item.custo) * qty;
+                
+                totalMarginRevenue += r;
+                totalMarginCost += c;
+
+                if (!marginProducts[item.id]) {
+                    marginProducts[item.id] = { nome: item.nome, qty: 0, revenue: 0, cost: 0 };
+                }
+                marginProducts[item.id].qty += qty;
+                marginProducts[item.id].revenue += r;
+                marginProducts[item.id].cost += c;
+            }
+        });
+    });
+
+    const totalMarginGross = totalMarginRevenue - totalMarginCost;
+    const totalMarginPct = totalMarginRevenue > 0 ? ((totalMarginGross / totalMarginRevenue) * 100).toFixed(1) : 0;
+
+    document.getElementById('kpi-margin-revenue').textContent = formatMoney(totalMarginRevenue);
+    document.getElementById('kpi-margin-cost').textContent = formatMoney(totalMarginCost);
+    document.getElementById('kpi-margin-gross').textContent = formatMoney(totalMarginGross);
+    document.getElementById('kpi-margin-percent').textContent = `${totalMarginPct}%`;
+
+    const marginTableBody = document.getElementById('margin-table-body');
+    const emptyMarginMsg = document.getElementById('empty-margin-msg');
+    
+    marginTableBody.innerHTML = '';
+    const marginProductsArr = Object.values(marginProducts).sort((a,b) => (b.revenue - b.cost) - (a.revenue - a.cost));
+    
+    if (marginProductsArr.length === 0) {
+        emptyMarginMsg.classList.remove('hidden');
+        marginTableBody.parentElement.classList.add('hidden');
+    } else {
+        emptyMarginMsg.classList.add('hidden');
+        marginTableBody.parentElement.classList.remove('hidden');
+        marginProductsArr.forEach(p => {
+            const mg = p.revenue - p.cost;
+            const tr = document.createElement('tr');
+            const isDecimal = !Number.isInteger(p.qty) && p.qty % 1 !== 0;
+            const qtyDisplay = isDecimal ? p.qty.toFixed(3).replace('.',',') : p.qty;
+            tr.innerHTML = `
+                <td><strong>${p.nome}</strong></td>
+                <td class="text-center">${qtyDisplay}</td>
+                <td class="text-right text-info">${formatMoney(p.revenue)}</td>
+                <td class="text-right text-danger">${formatMoney(p.cost)}</td>
+                <td class="text-right text-success" style="font-weight: 600">${formatMoney(mg)}</td>
+            `;
+            marginTableBody.appendChild(tr);
+        });
+    }
+
     // --- TAB DRE: Fechamento ---
     const custoMercadorias = expensesByCategory['FORNECEDOR'] || 0;
     const receitaBruta = totalVendas + totalReceitasExtras;
@@ -291,9 +380,14 @@ document.getElementById('transaction-form').addEventListener('submit', async (e)
     const valor = parseFloat(document.getElementById('trans-value').value);
     const dataRef = document.getElementById('trans-date').value;
 
-    let transactionDate = new Date().toISOString();
-    if (dataRef) {
-        // Usa a data fornecida as 12:00:00 local para evitar deslocamentos de fuso que virem de dia
+    const now = new Date();
+    // Usar offset para gerar a data YYYY-MM-DD correta da zona local
+    const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+
+    let transactionDate = now.toISOString();
+    
+    // Se selecionou uma data diferente do dia atual, aí sim forçamos 12:00
+    if (dataRef && dataRef !== todayStr) {
         transactionDate = new Date(dataRef + 'T12:00:00').toISOString();
     }
 

@@ -53,6 +53,7 @@
             <button class="btn btn-primary tab-btn" data-target="tab-extrato" style="border-radius: 20px;"><i class="fas fa-list-ul"></i> Extrato Geral</button>
             <button class="btn btn-ghost tab-btn" data-target="tab-despesas" style="border-radius: 20px;"><i class="fas fa-chart-pie"></i> Análise de Despesas</button>
             <button class="btn btn-ghost tab-btn" data-target="tab-dre" style="border-radius: 20px;"><i class="fas fa-file-invoice-dollar"></i> Fechamento DRE</button>
+            <button class="btn btn-ghost tab-btn" data-target="tab-margem" style="border-radius: 20px;"><i class="fas fa-percentage"></i> Margem de Produtos</button>
         </nav>
 
         <!-- TAB 1: EXTRATO GERAL -->
@@ -183,6 +184,63 @@
                 </div>
             </div>
         </div>
+
+        <!-- TAB 4: MÁRGEM DE PRODUTOS -->
+        <div id="tab-margem" class="tab-content hidden">
+            <div class="kpi-grid mb-4">
+                <div class="kpi-card glass-card gradient-primary">
+                    <div class="kpi-icon"><i class="fas fa-cash-register"></i></div>
+                    <div class="kpi-data">
+                        <span class="label" style="font-size: 0.8rem;">Receitas (Prod. c/ Custo)</span>
+                        <h3 id="kpi-margin-revenue">R$ 0,00</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-card gradient-danger">
+                    <div class="kpi-icon"><i class="fas fa-boxes"></i></div>
+                    <div class="kpi-data">
+                        <span class="label">Custo do Produto (CPV)</span>
+                        <h3 id="kpi-margin-cost">R$ 0,00</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-card gradient-success">
+                    <div class="kpi-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="kpi-data">
+                        <span class="label">Margem Bruta (R$)</span>
+                        <h3 id="kpi-margin-gross">R$ 0,00</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-card gradient-info">
+                    <div class="kpi-icon"><i class="fas fa-percentage"></i></div>
+                    <div class="kpi-data">
+                        <span class="label">Margem Bruta (%)</span>
+                        <h3 id="kpi-margin-percent">0%</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-table-container mt-4">
+                <h3 class="section-title">Análise de Desempenho por Produto</h3>
+                <p class="text-muted" style="margin-top: -0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">Nota: Apenas produtos com custo definido *no momento da venda* aparecerão listados abaixo.</p>
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th class="text-center">Qtde. Vendida</th>
+                            <th class="text-right">Receita Total</th>
+                            <th class="text-right">Custo Total</th>
+                            <th class="text-right">Margem Gerada</th>
+                        </tr>
+                    </thead>
+                    <tbody id="margin-table-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+                <div id="empty-margin-msg" class="empty-state">
+                    <i class="fas fa-chart-bar"></i>
+                    <p>Nenhum dado de margem disponível para as vendas do período.</p>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- New Transaction Modal -->
@@ -206,10 +264,17 @@
                         <label>Categoria Opcional</label>
                         <select id="trans-category" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2); color: white;">
                             <option value="">(Sem categoria)</option>
-                            <option value="FORNECEDOR">Pagamento Fornecedor</option>
-                            <option value="CONTAS">Contas de Consumo (Luz, Água, Internet)</option>
-                            <option value="MANUTENCAO">Manutenção / Conserto</option>
-                            <option value="IMPOSTOS">Impostos e Taxas</option>
+                            <optgroup label="Despesas Comuns">
+                                <option value="FORNECEDOR">Pagamento Fornecedor</option>
+                                <option value="CONTAS">Contas de Consumo (Luz, Água, Internet)</option>
+                                <option value="MANUTENCAO">Manutenção / Conserto</option>
+                                <option value="IMPOSTOS">Impostos e Taxas</option>
+                            </optgroup>
+                            <optgroup label="Receitas Extras">
+                                <option value="SERVICOS">Prestação de Serviços</option>
+                                <option value="RENDIMENTO">Rendimento / Juros</option>
+                                <option value="APORTE">Aporte de Capital</option>
+                            </optgroup>
                             <option value="OUTROS">Outros</option>
                         </select>
                     </div>

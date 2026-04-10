@@ -264,6 +264,8 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
     const prodId = document.getElementById('prod-id').value;
     let PLU = document.getElementById('prod-code').value.trim();
     const nome = document.getElementById('prod-name').value.trim();
+    const custoVal = document.getElementById('prod-cost').value;
+    const custo = custoVal !== '' ? parseFloat(custoVal) : null;
     const preco = parseFloat(document.getElementById('prod-price').value);
     const estoque = parseFloat(document.getElementById('prod-stock').value) || 0;
     const pesavel = document.getElementById('prod-pesavel').checked;
@@ -285,7 +287,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
         return;
     }
 
-    const newProduct = { PLU, nome, preco, estoque, pesavel, controlar_estoque, user_id: state.currentUser.id }; // id gerado automaticamente pelo banco
+    const newProduct = { PLU, nome, preco, custo, estoque, pesavel, controlar_estoque, user_id: state.currentUser.id }; // id gerado automaticamente pelo banco
 
     try {
         if (prodId) {
@@ -347,6 +349,7 @@ window.editProduct = (id) => {
     document.getElementById('prod-id').value = product.id;
     document.getElementById('prod-code').value = product.PLU;
     document.getElementById('prod-name').value = product.nome;
+    document.getElementById('prod-cost').value = product.custo !== null && product.custo !== undefined ? product.custo : '';
     document.getElementById('prod-price').value = product.preco;
     document.getElementById('prod-stock').value = product.estoque;
     document.getElementById('prod-pesavel').checked = !!product.pesavel;
@@ -406,7 +409,15 @@ const renderPosCatalog = (searchTerm = '') => {
             <span class="name">${p.nome}</span>
             <span class="price">${formatMoney(p.preco)}</span>
         `;
-        if (!isOutOfStock) card.addEventListener('click', () => addToCart(p));
+        if (!isOutOfStock) {
+            card.addEventListener('click', (e) => {
+                const currentCard = e.currentTarget;
+                currentCard.classList.remove('anim-flash');
+                void currentCard.offsetWidth;
+                currentCard.classList.add('anim-flash');
+                addToCart(p);
+            });
+        }
         grid.appendChild(card);
     });
 };
@@ -417,16 +428,30 @@ const tryParseScaleBarcode = (barcode) => {
     const cfg = state.scaleConfig;
     if (!cfg) return null;
     
+    // Suporte robusto para EAN-13 (Padrão de balanças no Brasil)
+    // Se o código começa com o prefixo (geralmente 2) e tem 12 ou 13 dígitos
+    const isScalePrefix = barcode.startsWith(String(cfg.prefix_length === 1 ? barcode[0] : barcode.substring(0, cfg.prefix_length)));
+    
+    // Se não parece código de balança pelo prefixo, sai logo
+    if (!isScalePrefix) return null;
+
     const expectedLen = cfg.prefix_length + cfg.plu_length + cfg.value_length + 1; // +1 checksum
-    if (barcode.length !== expectedLen && barcode.length !== expectedLen - 1) return null;
+    
+    // Se o código for EAN-13 (13 dígitos) mas a config somar menos, permitimos o parsing se o prefixo bater
+    if (barcode.length !== 13 && barcode.length !== expectedLen && barcode.length !== expectedLen - 1) return null;
     
     // Extracted strings
     const pluStr = barcode.substring(cfg.prefix_length, cfg.prefix_length + cfg.plu_length);
     const valueStr = barcode.substring(cfg.prefix_length + cfg.plu_length, cfg.prefix_length + cfg.plu_length + cfg.value_length);
     
+    // Tenta encontrar o produto pelo PLU extraído
     const pluNum = parseInt(pluStr, 10);
     const product = state.products.find(p => (p.PLU === pluStr || String(p.PLU) === String(pluNum)) && p.pesavel);
-    if (!product) return null;
+    
+    if (!product) {
+        console.warn(`Código de balança detectado mas PLU "${pluStr}" não encontrado ou não é pesável.`);
+        return null;
+    }
 
     const parsedValue = parseInt(valueStr, 10);
     if (isNaN(parsedValue)) return null;
@@ -440,6 +465,7 @@ const tryParseScaleBarcode = (barcode) => {
 
     return { product, qty };
 };
+
 
 // Suporte ao Leitor de Código de Barras (Enter)
 document.getElementById('pos-search').addEventListener('keydown', (e) => {
@@ -487,6 +513,15 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+const triggerCartPop = () => {
+    const countEl = document.querySelector('.cart-items-count');
+    if (countEl) {
+        countEl.classList.remove('anim-pop');
+        void countEl.offsetWidth;
+        countEl.classList.add('anim-pop');
+    }
+};
+
 const addToCart = (product, requestedQty = 1) => {
     const existing = state.cart.find(item => item.product.id === product.id);
     if (existing) {
@@ -506,6 +541,7 @@ const addToCart = (product, requestedQty = 1) => {
         state.cart.push({ product, qty: requestedQty });
     }
     renderCart();
+    triggerCartPop();
 };
 
 window.updateCartQty = (productId, delta) => {
@@ -521,6 +557,7 @@ window.updateCartQty = (productId, delta) => {
         item.qty = newQty;
     }
     renderCart();
+    if (delta > 0) triggerCartPop();
 };
 
 const renderCart = () => {
@@ -714,6 +751,7 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
             PLU: item.product.PLU,
             nome: item.product.nome,
             preco: item.product.preco,
+            custo: item.product.custo !== undefined ? item.product.custo : null,
             qty: item.qty
         }))
     };
@@ -1813,7 +1851,7 @@ document.getElementById('scale-config-form')?.addEventListener('submit', async (
 
     // Mostrar menu de configurações para todos (Global)
     const navSettings = document.getElementById('nav-settings');
-    if (navSettings) navSettings.style.display = 'flex';
+    if (navSettings) navSettings.style.display = 'block';
 
     await loadData();
     navigateTo('screen-pos');

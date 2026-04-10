@@ -1,4 +1,4 @@
-﻿/* ===== Design System & Variables ===== */
+/* ===== Design System & Variables ===== */
 :root {
     /* Colors - Sleek Dark Theme */
     --bg-base: #0f172a;
@@ -111,7 +111,8 @@ a:hover {
 .text-danger { color: var(--danger-color); }
 .text-success { color: var(--success-color); }
 .text-muted { color: var(--text-muted); }
-.text-right { text-align: right; }
+.text-center { text-align: center !important; }
+.text-right { text-align: right !important; }
 .hidden { display: none !important; }
 .mt-2 { margin-top: 0.5rem; }
 .mt-4 { margin-top: 1.5rem; }
@@ -1244,3 +1245,27 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
     opacity: 1;
 }
+
+/* ===== Micro-Interactions (Visual Feedback) ===== */
+@keyframes popEffect {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+.anim-pop {
+    animation: popEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes flashEffect {
+    0% { background: rgba(99, 102, 241, 0.4); border-color: var(--accent-light); }
+    100% { background: var(--bg-glass); border-color: var(--border-glass); }
+}
+.anim-flash {
+    animation: flashEffect 0.4s ease-out;
+}
+
+input:focus, textarea:focus, select:focus {
+    transform: scale(1.01);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+}
+
