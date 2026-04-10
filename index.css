@@ -1264,7 +1264,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
     animation: flashEffect 0.4s ease-out;
 }
 
-input:focus, textarea:focus, select:focus {
+input:not(#pos-search):not(#search-orders-client):focus, textarea:focus, select:focus {
     transform: scale(1.01);
     box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
 }
