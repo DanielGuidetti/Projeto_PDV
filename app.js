@@ -692,16 +692,22 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
         return;
     }
 
+    const customDateInput = document.getElementById('pos-custom-date');
+    let saleDateISO = new Date().toISOString();
+    if (customDateInput && customDateInput.value) {
+        saleDateISO = new Date(customDateInput.value + 'T12:00:00').toISOString();
+    }
+
     // Save Sale
     const sale = {
-        data: new Date().toISOString(),
+        data: saleDateISO,
         total,
         totalItens,
         cliente: clienteName || null,
         forma_pagamento: method,
         status: method === 'ENCOMENDA' ? 'ENCOMENDA' : 'CONCLUIDA',
         status_entrega: method === 'ENCOMENDA' ? 'PENDENTE' : 'ENTREGUE',
-        data_conclusao: method === 'ENCOMENDA' ? null : new Date().toISOString(),
+        data_conclusao: method === 'ENCOMENDA' ? null : saleDateISO,
         user_id: state.currentUser.id,
         itens: state.cart.map(item => ({
             id: item.product.id,
@@ -760,6 +766,9 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
         // Limpar inputs de checkout
         const customerInput = document.getElementById('pos-customer-name');
         if (customerInput) customerInput.value = '';
+        
+        const customDateInputToClear = document.getElementById('pos-custom-date');
+        if (customDateInputToClear) customDateInputToClear.value = '';
 
         renderCart();
         renderPosCatalog();

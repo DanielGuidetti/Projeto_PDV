@@ -37,7 +37,10 @@
           <div class="avatar"><i class="fas fa-user-circle"></i></div>
           <span id="display-username">Admin</span>
         </div>
-        <button id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
+        <div style="display: flex; align-items: center;">
+            <a href="financeiro.html" title="Financeiro" style="color: inherit; opacity: 0.4; font-size: 1.1rem; margin-right: 0.8rem; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'"><i class="fas fa-wallet"></i></a>
+            <button id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
       </div>
     </nav>
 
@@ -154,7 +157,10 @@
           <div class="pos-cart glass-card">
             <div class="cart-header">
               <h3>Cesta de Compras</h3>
-              <span class="cart-items-count">0 itens</span>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="date" id="pos-custom-date" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); border-radius: 4px; padding: 0.25rem 0.5rem; font-size: 0.75rem;" title="Data da Venda (Opcional, preencha apenas para vendas retroativas)">
+                <span class="cart-items-count">0 itens</span>
+              </div>
             </div>
 
             <div class="cart-items-list" id="cart-items-container">
@@ -165,7 +171,7 @@
               </div>
             </div>
 
-            <div class="pos-customer input-group" style="padding: 1rem 1rem 0 1rem; margin-bottom: 0;">
+            <div class="pos-customer input-group" style="padding: 1rem 1.5rem; margin-bottom: 0;">
               <input type="text" id="pos-customer-name" placeholder="Nome do Cliente (Opcional)" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: white; width: 100%; border-radius: 8px; padding: 0.8rem;">
             </div>
 
