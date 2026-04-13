@@ -432,8 +432,7 @@ window.renderReceitasTable = (searchTerm = '') => {
                 <td style="color: var(--warning-color);">${formatMoney(r.custo_total)}</td>
                 <td style="color: var(--success-color); font-weight: bold;">${formatMoney(r.custo_unitario)}</td>
                 <td class="text-right">
-                    <button class="btn-icon" onclick="editRecipe('${r.id}')" title="Editar"><i class="fas fa-edit text-primary"></i></button>
-                    <button class="btn-icon" onclick="deleteRecipe('${r.id}')" title="Excluir"><i class="fas fa-trash text-danger"></i></button>
+                    <button class="btn btn-primary btn-small" onclick="viewRecipe('${r.id}')"><i class="fas fa-eye"></i> Visualizar</button>
                 </td>
             `;
             recipesTableBody.appendChild(tr);
@@ -666,6 +665,58 @@ window.deleteRecipe = async (id) => {
             showToast('Erro ao remover receita.', 'error');
         }
     }
+};
+
+/* View Recipe Logic */
+const recipeViewModal = document.getElementById('recipe-view-modal');
+const closeViewModals = document.querySelectorAll('.close-view-modal');
+
+closeViewModals.forEach(btn => {
+    btn.addEventListener('click', () => {
+        recipeViewModal.classList.remove('active');
+    });
+});
+
+window.viewRecipe = (id) => {
+    const receita = state.receitas.find(r => String(r.id) === String(id));
+    if (!receita) return;
+
+    document.getElementById('view-recipe-title').textContent = receita.nome;
+    document.getElementById('view-recipe-yield').textContent = receita.rendimento + ' un.';
+    document.getElementById('view-recipe-total-cost').textContent = formatMoney(receita.custo_total);
+    document.getElementById('view-recipe-unit-cost').textContent = formatMoney(receita.custo_unitario);
+
+    const tbody = document.getElementById('view-recipe-ingredients-body');
+    tbody.innerHTML = '';
+
+    if (receita.ingredientes && receita.ingredientes.length > 0) {
+        receita.ingredientes.forEach(ing => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${ing.name}</strong></td>
+                <td>${ing.packageQty}</td>
+                <td style="color:var(--text-secondary)">${formatMoney(ing.packagePrice)}</td>
+                <td>${ing.recipeQty}</td>
+                <td class="text-right text-success" style="font-weight:bold;">${formatMoney(ing.rowCost)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } else {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted" style="padding: 2rem;">Nenhum detalhe de ingrediente salvo.</td></tr>';
+    }
+
+    // Handlers for edit and delete inside view modal
+    document.getElementById('btn-edit-view-recipe').onclick = () => {
+        recipeViewModal.classList.remove('active');
+        editRecipe(id);
+    };
+    
+    document.getElementById('btn-delete-view-recipe').onclick = () => {
+        recipeViewModal.classList.remove('active');
+        deleteRecipe(id);
+    };
+
+    recipeViewModal.classList.add('active');
 };
 
 /* ===== Modules: POS ===== */
