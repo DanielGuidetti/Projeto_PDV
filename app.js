@@ -10,7 +10,8 @@ const state = {
     products: [],
     sales: [],
     cart: [],
-    movimentacoes: []
+    movimentacoes: [],
+    receitas: []
 };
 
 /* ===== Supabase Initialization ===== */
@@ -127,6 +128,7 @@ const navigateTo = async (routeId) => {
         if (routeId === 'screen-reports') await renderReports();
         if (routeId === 'screen-stock') renderStockHistory();
         if (routeId === 'screen-encomendas') await renderOrders();
+        if (routeId === 'screen-receitas') renderReceitasTable();
     }
 };
 
@@ -162,6 +164,9 @@ const loadData = async () => {
 
         const { data: movs } = await _supabase.from('movimentacoes').select('*');
         if (movs) state.movimentacoes = movs;
+
+        const { data: recs } = await _supabase.from('receitas').select('*');
+        if (recs) state.receitas = recs;
     } catch (e) {
         console.error('Erro ao carregar dados do Supabase:', e);
         showToast('Erro ao carregar dados.', 'error');
@@ -186,18 +191,24 @@ _supabase.auth.onAuthStateChange(async (event, session) => {
 
 /* ===== Modules: Products ===== */
 const productModal = document.getElementById('product-modal');
-const renderProductsTable = () => {
+const renderProductsTable = (searchTerm = '') => {
     const tbody = document.getElementById('products-table-body');
     const emptyMsg = document.getElementById('empty-products-msg');
     tbody.innerHTML = '';
     
-    if (state.products.length === 0) {
+    let filtered = state.products;
+    if (searchTerm) {
+        const term = normalizeName(searchTerm);
+        filtered = filtered.filter(p => normalizeName(p.nome).includes(term) || String(p.PLU).includes(term));
+    }
+    
+    if (filtered.length === 0) {
         emptyMsg.classList.remove('hidden');
         tbody.parentElement.classList.add('hidden');
     } else {
         emptyMsg.classList.add('hidden');
         tbody.parentElement.classList.remove('hidden');
-        state.products.forEach(p => {
+        filtered.forEach(p => {
             const tr = document.createElement('tr');
             let statusClass = 'badge-success';
             let statusText = 'Em Estoque';
@@ -359,6 +370,10 @@ window.editProduct = (id) => {
     productModal.classList.add('active');
 };
 
+document.getElementById('products-search')?.addEventListener('input', (e) => {
+    renderProductsTable(e.target.value);
+});
+
 window.deleteProduct = async (id) => {
     if (confirm('Deseja realmente remover este produto do sistema?')) {
         try {
@@ -371,6 +386,284 @@ window.deleteProduct = async (id) => {
         } catch(err) {
             showToast('Erro ao remover produto do banco.', 'error');
             console.error(err);
+        }
+    }
+};
+/* ===== Modules: Receitas ===== */
+const recipeCalcModal = document.getElementById('recipe-calculator-modal');
+const btnNewRecipe = document.getElementById('btn-new-recipe');
+const btnCloseCalcModals = document.querySelectorAll('.close-calc-modal');
+const btnAddIngredient = document.getElementById('btn-add-ingredient');
+const btnClearCalc = document.getElementById('btn-clear-calc');
+const calcIngredientsBody = document.getElementById('calc-ingredients-body');
+const calcTotalCostEl = document.getElementById('calc-total-cost');
+const calcUnitCostEl = document.getElementById('calc-unit-cost');
+const calcYieldInput = document.getElementById('calc-recipe-yield');
+const recipesTableBody = document.getElementById('recipes-table-body');
+const emptyRecipesMsg = document.getElementById('empty-recipes-msg');
+
+let calcState = {
+    ingredients: [],
+    nextId: 1
+};
+
+window.renderReceitasTable = (searchTerm = '') => {
+    if (!recipesTableBody) return;
+    recipesTableBody.innerHTML = '';
+    
+    let filtered = state.receitas;
+    if (searchTerm) {
+        const term = normalizeName(searchTerm);
+        filtered = filtered.filter(r => normalizeName(r.nome).includes(term));
+    }
+    
+    if (filtered.length === 0) {
+        emptyRecipesMsg.classList.remove('hidden');
+        recipesTableBody.parentElement.classList.add('hidden');
+    } else {
+        emptyRecipesMsg.classList.add('hidden');
+        recipesTableBody.parentElement.classList.remove('hidden');
+        
+        filtered.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${r.nome}</strong></td>
+                <td>${r.rendimento} un.</td>
+                <td style="color: var(--warning-color);">${formatMoney(r.custo_total)}</td>
+                <td style="color: var(--success-color); font-weight: bold;">${formatMoney(r.custo_unitario)}</td>
+                <td class="text-right">
+                    <button class="btn-icon" onclick="editRecipe('${r.id}')" title="Editar"><i class="fas fa-edit text-primary"></i></button>
+                    <button class="btn-icon" onclick="deleteRecipe('${r.id}')" title="Excluir"><i class="fas fa-trash text-danger"></i></button>
+                </td>
+            `;
+            recipesTableBody.appendChild(tr);
+        });
+    }
+};
+
+document.getElementById('receitas-search')?.addEventListener('input', (e) => {
+    renderReceitasTable(e.target.value);
+});
+
+if (btnNewRecipe) {
+    btnNewRecipe.addEventListener('click', () => {
+        document.getElementById('recipe-modal-title').textContent = 'Cadastrar Receita';
+        document.getElementById('calc-recipe-id').value = '';
+        clearCalcForm();
+        recipeCalcModal.classList.add('active');
+    });
+}
+
+if (btnCloseCalcModals) {
+    btnCloseCalcModals.forEach(btn => {
+        btn.addEventListener('click', () => {
+            recipeCalcModal.classList.remove('active');
+        });
+    });
+}
+
+const addIngredientRow = (ingredientData = null) => {
+    const id = calcState.nextId++;
+    if (ingredientData) {
+        calcState.ingredients.push({ id, ...ingredientData });
+    } else {
+        calcState.ingredients.push({ id, name: '', packageQty: '', packagePrice: '', recipeQty: '', rowCost: 0 });
+    }
+    renderCalcTable();
+    updateCalcTotals();
+};
+
+if (btnAddIngredient) {
+    btnAddIngredient.addEventListener('click', () => addIngredientRow());
+}
+
+const clearCalcForm = () => {
+    calcState.ingredients = [];
+    calcState.nextId = 1;
+    document.getElementById('calc-recipe-name').value = '';
+    calcYieldInput.value = '1';
+    renderCalcTable();
+    addIngredientRow();
+};
+
+if (btnClearCalc) {
+    btnClearCalc.addEventListener('click', () => {
+        if (confirm('Tem certeza que deseja limpar o formulário?')) {
+            clearCalcForm();
+        }
+    });
+}
+
+if (calcYieldInput) {
+    calcYieldInput.addEventListener('input', updateCalcTotals);
+}
+
+window.updateCalcRow = (id, field, value) => {
+    const ingredient = calcState.ingredients.find(i => i.id === id);
+    if (!ingredient) return;
+
+    if (field === 'name') {
+        ingredient.name = value;
+    } else {
+        ingredient[field] = parseFloat(value) || 0;
+        
+        if (ingredient.packageQty > 0 && ingredient.packagePrice >= 0 && ingredient.recipeQty >= 0) {
+            ingredient.rowCost = (ingredient.packagePrice / ingredient.packageQty) * ingredient.recipeQty;
+        } else {
+            ingredient.rowCost = 0;
+        }
+        
+        const rowCostEl = document.getElementById(`calc-row-cost-${id}`);
+        if (rowCostEl) rowCostEl.textContent = formatMoney(ingredient.rowCost);
+        
+        updateCalcTotals();
+    }
+};
+
+window.deleteCalcRow = (id) => {
+    calcState.ingredients = calcState.ingredients.filter(i => i.id !== id);
+    renderCalcTable();
+    updateCalcTotals();
+};
+
+function updateCalcTotals() {
+    const totalCost = calcState.ingredients.reduce((sum, item) => sum + item.rowCost, 0);
+    const yieldVal = parseFloat(calcYieldInput.value) || 0;
+    
+    let unitCost = 0;
+    if (yieldVal > 0) {
+        unitCost = totalCost / yieldVal;
+    }
+    
+    calcTotalCostEl.textContent = formatMoney(totalCost);
+    calcUnitCostEl.textContent = formatMoney(unitCost);
+    
+    // Store in hidden state so we can save it easily
+    calcState.totalCost = totalCost;
+    calcState.unitCost = unitCost;
+};
+
+function renderCalcTable() {
+    if (!calcIngredientsBody) return;
+    calcIngredientsBody.innerHTML = '';
+    
+    if (calcState.ingredients.length === 0) {
+       calcIngredientsBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 1rem;">Nenhum ingrediente adicionado.</td></tr>`;
+       return;
+    }
+    
+    calcState.ingredients.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <input type="text" value="${item.name}" oninput="updateCalcRow(${item.id}, 'name', this.value)" placeholder="Ex: Farinha" required style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+            </td>
+            <td>
+                <input type="number" min="0" step="any" value="${item.packageQty || ''}" oninput="updateCalcRow(${item.id}, 'packageQty', this.value)" required placeholder="0" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+            </td>
+            <td>
+                <input type="number" min="0" step="0.01" value="${item.packagePrice || ''}" oninput="updateCalcRow(${item.id}, 'packagePrice', this.value)" required placeholder="0.00" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+            </td>
+            <td>
+                <input type="number" min="0" step="any" value="${item.recipeQty || ''}" oninput="updateCalcRow(${item.id}, 'recipeQty', this.value)" required placeholder="0" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+            </td>
+            <td style="font-weight: bold; color: var(--accent-color);" id="calc-row-cost-${item.id}">
+                ${formatMoney(item.rowCost)}
+            </td>
+            <td class="text-right">
+                <button type="button" class="btn-icon" onclick="deleteCalcRow(${item.id})" title="Remover Ingrediente"><i class="fas fa-trash text-danger"></i></button>
+            </td>
+        `;
+        calcIngredientsBody.appendChild(tr);
+    });
+};
+
+/* Form Submit Logic */
+document.getElementById('recipe-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('calc-recipe-id').value;
+    const nome = document.getElementById('calc-recipe-name').value.trim();
+    const rendimento = parseFloat(calcYieldInput.value) || 1;
+    const ingredientes = calcState.ingredients.map(i => ({
+        name: i.name,
+        packageQty: i.packageQty,
+        packagePrice: i.packagePrice,
+        recipeQty: i.recipeQty,
+        rowCost: i.rowCost
+    }));
+
+    if (ingredientes.length === 0) {
+        showToast('Adicione pelo menos um ingrediente.', 'error');
+        return;
+    }
+
+    const payload = {
+        nome,
+        rendimento,
+        custo_total: calcState.totalCost || 0,
+        custo_unitario: calcState.unitCost || 0,
+        ingredientes,
+        user_id: state.currentUser.id
+    };
+
+    try {
+        if (id) {
+            const { data, error } = await _supabase.from('receitas').update(payload).eq('id', id).select();
+            if (error) throw error;
+            const idx = state.receitas.findIndex(r => String(r.id) === id);
+            if (idx !== -1) state.receitas[idx] = data && data.length > 0 ? data[0] : { ...state.receitas[idx], ...payload };
+            showToast('Receita atualizada!', 'success');
+        } else {
+            const { data, error } = await _supabase.from('receitas').insert([payload]).select();
+            if (error) throw error;
+            if (data && data.length > 0) state.receitas.push(data[0]);
+            showToast('Receita cadastrada com sucesso!', 'success');
+        }
+        recipeCalcModal.classList.remove('active');
+        renderReceitasTable();
+    } catch(err) {
+        console.error(err);
+        showToast('Erro ao salvar receita no banco.', 'error');
+    }
+});
+
+window.editRecipe = (id) => {
+    const receita = state.receitas.find(r => String(r.id) === String(id));
+    if (!receita) return;
+
+    document.getElementById('recipe-modal-title').textContent = 'Editar Receita';
+    document.getElementById('calc-recipe-id').value = receita.id;
+    document.getElementById('calc-recipe-name').value = receita.nome;
+    calcYieldInput.value = receita.rendimento;
+    
+    calcState.ingredients = [];
+    calcState.nextId = 1;
+    
+    if (receita.ingredientes && receita.ingredientes.length > 0) {
+        receita.ingredientes.forEach(ing => {
+            const rowId = calcState.nextId++;
+            calcState.ingredients.push({ id: rowId, ...ing });
+        });
+    } else {
+        addIngredientRow();
+    }
+    
+    renderCalcTable();
+    updateCalcTotals();
+    recipeCalcModal.classList.add('active');
+};
+
+window.deleteRecipe = async (id) => {
+    if (confirm('Deseja realmente excluir esta receita permanentemente?')) {
+        try {
+            const { error } = await _supabase.from('receitas').delete().eq('id', id);
+            if (error) throw error;
+            state.receitas = state.receitas.filter(r => String(r.id) !== String(id));
+            renderReceitasTable();
+            showToast('Receita removida.', 'info');
+        } catch(err) {
+            console.error(err);
+            showToast('Erro ao remover receita.', 'error');
         }
     }
 };
