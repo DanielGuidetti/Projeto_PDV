@@ -394,6 +394,7 @@ const recipeCalcModal = document.getElementById('recipe-calculator-modal');
 const btnNewRecipe = document.getElementById('btn-new-recipe');
 const btnCloseCalcModals = document.querySelectorAll('.close-calc-modal');
 const btnAddIngredient = document.getElementById('btn-add-ingredient');
+const btnAddLabel = document.getElementById('btn-add-label');
 const btnClearCalc = document.getElementById('btn-clear-calc');
 const calcIngredientsBody = document.getElementById('calc-ingredients-body');
 const calcTotalCostEl = document.getElementById('calc-total-cost');
@@ -461,12 +462,16 @@ if (btnCloseCalcModals) {
     });
 }
 
-const addIngredientRow = (ingredientData = null) => {
+const addIngredientRow = (ingredientData = null, isLabel = false) => {
     const id = calcState.nextId++;
     if (ingredientData) {
         calcState.ingredients.push({ id, ...ingredientData });
     } else {
-        calcState.ingredients.push({ id, name: '', packageQty: '', packagePrice: '', recipeQty: '', rowCost: 0 });
+        if (isLabel) {
+            calcState.ingredients.push({ id, isLabel: true, name: '', rowCost: 0 });
+        } else {
+            calcState.ingredients.push({ id, isLabel: false, name: '', packageQty: '', packagePrice: '', recipeQty: '', rowCost: 0 });
+        }
     }
     renderCalcTable();
     updateCalcTotals();
@@ -474,6 +479,9 @@ const addIngredientRow = (ingredientData = null) => {
 
 if (btnAddIngredient) {
     btnAddIngredient.addEventListener('click', () => addIngredientRow());
+}
+if (btnAddLabel) {
+    btnAddLabel.addEventListener('click', () => addIngredientRow(null, true));
 }
 
 const clearCalcForm = () => {
@@ -553,26 +561,37 @@ function renderCalcTable() {
     
     calcState.ingredients.forEach(item => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>
-                <input type="text" value="${item.name}" oninput="updateCalcRow(${item.id}, 'name', this.value)" placeholder="Ex: Farinha" required style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
-            </td>
-            <td>
-                <input type="number" min="0" step="any" value="${item.packageQty || ''}" oninput="updateCalcRow(${item.id}, 'packageQty', this.value)" required placeholder="0" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
-            </td>
-            <td>
-                <input type="number" min="0" step="0.01" value="${item.packagePrice || ''}" oninput="updateCalcRow(${item.id}, 'packagePrice', this.value)" required placeholder="0.00" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
-            </td>
-            <td>
-                <input type="number" min="0" step="any" value="${item.recipeQty || ''}" oninput="updateCalcRow(${item.id}, 'recipeQty', this.value)" required placeholder="0" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
-            </td>
-            <td style="font-weight: bold; color: var(--accent-color);" id="calc-row-cost-${item.id}">
-                ${formatMoney(item.rowCost)}
-            </td>
-            <td class="text-right">
-                <button type="button" class="btn-icon" onclick="deleteCalcRow(${item.id})" title="Remover Ingrediente"><i class="fas fa-trash text-danger"></i></button>
-            </td>
-        `;
+        if (item.isLabel) {
+            tr.innerHTML = `
+                <td colspan="5" style="background: rgba(255,255,255,0.02); padding-top: 1rem; padding-bottom: 0.2rem;">
+                    <input type="text" value="${item.name}" oninput="updateCalcRow(${item.id}, 'name', this.value)" placeholder="Rótulo (ex: Massa, Recheio)" required style="width: 100%; padding: 0.5rem 0; border: none; background: transparent; color: var(--accent-color); font-weight: bold; font-size: 1.1rem; outline: none; border-bottom: 2px solid var(--accent-color);">
+                </td>
+                <td class="text-right" style="background: rgba(255,255,255,0.02); vertical-align: bottom; padding-top: 1rem; padding-bottom: 0.2rem;">
+                    <button type="button" class="btn-icon" onclick="deleteCalcRow(${item.id})" title="Remover Rótulo"><i class="fas fa-trash text-danger"></i></button>
+                </td>
+            `;
+        } else {
+            tr.innerHTML = `
+                <td>
+                    <input type="text" value="${item.name}" oninput="updateCalcRow(${item.id}, 'name', this.value)" placeholder="Ex: Farinha" required style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+                </td>
+                <td>
+                    <input type="number" min="0" step="any" value="${item.packageQty || ''}" oninput="updateCalcRow(${item.id}, 'packageQty', this.value)" required placeholder="0" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+                </td>
+                <td>
+                    <input type="number" min="0" step="0.01" value="${item.packagePrice || ''}" oninput="updateCalcRow(${item.id}, 'packagePrice', this.value)" required placeholder="0.00" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+                </td>
+                <td>
+                    <input type="number" min="0" step="any" value="${item.recipeQty || ''}" oninput="updateCalcRow(${item.id}, 'recipeQty', this.value)" required placeholder="0" style="width: 100%; padding: 0.4rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; border-radius: 4px;">
+                </td>
+                <td style="font-weight: bold; color: var(--accent-color);" id="calc-row-cost-${item.id}">
+                    ${formatMoney(item.rowCost)}
+                </td>
+                <td class="text-right">
+                    <button type="button" class="btn-icon" onclick="deleteCalcRow(${item.id})" title="Remover Ingrediente"><i class="fas fa-trash text-danger"></i></button>
+                </td>
+            `;
+        }
         calcIngredientsBody.appendChild(tr);
     });
 };
@@ -583,13 +602,23 @@ document.getElementById('recipe-form')?.addEventListener('submit', async (e) => 
     const id = document.getElementById('calc-recipe-id').value;
     const nome = document.getElementById('calc-recipe-name').value.trim();
     const rendimento = parseFloat(calcYieldInput.value) || 1;
-    const ingredientes = calcState.ingredients.map(i => ({
-        name: i.name,
-        packageQty: i.packageQty,
-        packagePrice: i.packagePrice,
-        recipeQty: i.recipeQty,
-        rowCost: i.rowCost
-    }));
+    const ingredientes = calcState.ingredients.map(i => {
+        if (i.isLabel) {
+            return {
+                isLabel: true,
+                name: i.name,
+                rowCost: 0
+            };
+        }
+        return {
+            isLabel: false,
+            name: i.name,
+            packageQty: i.packageQty,
+            packagePrice: i.packagePrice,
+            recipeQty: i.recipeQty,
+            rowCost: i.rowCost
+        };
+    });
 
     if (ingredientes.length === 0) {
         showToast('Adicione pelo menos um ingrediente.', 'error');
@@ -692,13 +721,21 @@ window.viewRecipe = (id) => {
     if (receita.ingredientes && receita.ingredientes.length > 0) {
         receita.ingredientes.forEach(ing => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><strong>${ing.name}</strong></td>
-                <td>${ing.packageQty}</td>
-                <td style="color:var(--text-secondary)">${formatMoney(ing.packagePrice)}</td>
-                <td>${ing.recipeQty}</td>
-                <td class="text-right text-success" style="font-weight:bold;">${formatMoney(ing.rowCost)}</td>
-            `;
+            if (ing.isLabel) {
+                tr.innerHTML = `
+                    <td colspan="5" style="background: rgba(255,255,255,0.02); color: var(--accent-color); font-weight: bold; font-size: 1.1rem; padding: 1rem 0.5rem 0.5rem 0.5rem; border-bottom: 2px solid var(--accent-color);">
+                        ${ing.name}
+                    </td>
+                `;
+            } else {
+                tr.innerHTML = `
+                    <td><strong>${ing.name}</strong></td>
+                    <td>${ing.packageQty || '-'}</td>
+                    <td style="color:var(--text-secondary)">${ing.packagePrice ? formatMoney(ing.packagePrice) : '-'}</td>
+                    <td>${ing.recipeQty || '-'}</td>
+                    <td class="text-right text-success" style="font-weight:bold;">${formatMoney(ing.rowCost || 0)}</td>
+                `;
+            }
             tbody.appendChild(tr);
         });
     } else {

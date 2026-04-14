@@ -225,9 +225,14 @@
                     <!-- Linhas dinâmicas -->
                   </tbody>
                 </table>
-                <button type="button" class="btn btn-primary btn-small mt-2" id="btn-add-ingredient">
-                  <i class="fas fa-plus"></i> Adicionar Ingrediente
-                </button>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-primary btn-small mt-2" id="btn-add-ingredient">
+                    <i class="fas fa-plus"></i> Adicionar Ingrediente
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-small mt-2" id="btn-add-label" style="border: 1px solid var(--border-glass);">
+                    <i class="fas fa-tag"></i> Adicionar Rótulo
+                  </button>
+                </div>
               </div>
 
               <div class="calculator-totals mt-4" style="background: rgba(0,0,0,0.1); padding: 1.5rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
