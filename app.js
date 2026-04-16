@@ -1589,7 +1589,7 @@ document.getElementById('btn-confirm-partial-delivery')?.addEventListener('click
                     const newStock = Number((product.estoque - qtyVal).toFixed(3));
                     await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
                     await _supabase.from('movimentacoes').insert([{
-                        produto_id: product.id, type: 'SAÍDA', quantidade: qtyVal, motivo: `Entrega Parcial #${order.id}`, user_id: state.currentUser.id
+                        produto_id: product.id, tipo: 'SAÍDA', quantidade: qtyVal, motivo: `Entrega Parcial #${order.id}`, user_id: state.currentUser.id
                     }]);
                     product.estoque = newStock;
                 }
