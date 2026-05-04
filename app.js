@@ -1318,13 +1318,20 @@ const renderOrders = async () => {
     const itemMap = {};
     pendingOrders.forEach(s => {
         s.itens.forEach(item => {
-            itemMap[item.nome] = (itemMap[item.nome] || 0) + item.qty;
+            const delivered = Number(item.delivered_qty || 0);
+            const remaining = Number(item.qty) - delivered;
+            if (remaining > 0) {
+                itemMap[item.nome] = (itemMap[item.nome] || 0) + remaining;
+            }
         });
     });
     const topItems = Object.entries(itemMap)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
-        .map(([name, qty]) => `<span class="badge badge-kpi">${name} (${qty})</span>`)
+        .map(([name, qty]) => {
+            const qtyDisplay = (qty % 1 !== 0) ? qty.toFixed(3).replace('.', ',') : qty;
+            return `<span class="badge badge-kpi">${name} (${qtyDisplay})</span>`;
+        })
         .join(' ');
     
     document.getElementById('kpi-top-ordered-items').innerHTML = topItems || 'Nenhum item pendente';
@@ -1357,86 +1364,96 @@ const renderOrders = async () => {
         `).join('');
     }
 
-    // Tabela de Encomendas
-    const tbody = document.getElementById('orders-table-body');
-    const emptyMsg = document.getElementById('empty-orders-msg');
-    tbody.innerHTML = '';
-    
-    if (pendingOrders.length === 0) {
-        emptyMsg.classList.remove('hidden');
-        tbody.parentElement.classList.add('hidden');
-    } else {
-        emptyMsg.classList.add('hidden');
-        tbody.parentElement.classList.remove('hidden');
-        
-        const groupedOrders = {};
-        pendingOrders.forEach(s => {
-            const clientName = s.cliente ? s.cliente.trim() : 'Sem Nome';
-            const normalized = normalizeName(clientName);
-            if (!groupedOrders[normalized]) {
-                groupedOrders[normalized] = {
-                    clientName: clientName,
-                    orders: [],
-                    totalDebt: 0,
-                    totalValue: 0,
-                    totalPaid: 0,
-                    pendingDeliveries: 0
-                };
-            }
-            groupedOrders[normalized].orders.push(s);
-            const valPago = Number(s.valor_pago || 0);
-            groupedOrders[normalized].totalValue += Number(s.total);
-            groupedOrders[normalized].totalPaid += valPago;
-            groupedOrders[normalized].totalDebt += (Number(s.total) - valPago);
-            if (!s.status_entrega || s.status_entrega === 'PENDENTE') {
-                groupedOrders[normalized].pendingDeliveries++;
-            }
-        });
+    // Separação em duas listas
+    const pendingDeliveryOrders = pendingOrders.filter(s => s.status_entrega !== 'ENTREGUE');
+    const deliveredOrders = pendingOrders.filter(s => s.status_entrega === 'ENTREGUE');
 
-        Object.values(groupedOrders).sort((a,b) => b.totalDebt - a.totalDebt).forEach((group, index) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td colspan="6" style="padding: 0; border-bottom: none;">
-                    <div class="client-orders-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: rgba(var(--primary-color-rgb), 0.05); cursor: pointer; border-bottom: 2px solid var(--border-color);" onclick="toggleClientOrders('client-orders-${index}')">
-                        <div style="display: flex; align-items: center; gap: 1rem;">
-                            <strong style="font-size: 1.1rem; color: var(--text-primary);">${toTitleCase(group.clientName)}</strong>
-                            <span class="badge ${group.pendingDeliveries > 0 ? 'badge-warning' : 'badge-success'}">${group.orders.length} pedido(s)</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 2rem;">
-                            <div style="text-align: right;">
-                                <strong class="text-danger" style="font-size: 1.1rem;">Falta: ${formatMoney(group.totalDebt)}</strong>
-                                <br><small class="text-muted">Total Encomendado: ${formatMoney(group.totalValue)}</small>
+    const renderGroupedTable = (orders, tbodyId, emptyMsgId, togglePrefix) => {
+        const tbody = document.getElementById(tbodyId);
+        const emptyMsg = document.getElementById(emptyMsgId);
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        
+        if (orders.length === 0) {
+            emptyMsg.classList.remove('hidden');
+            tbody.parentElement.classList.add('hidden');
+        } else {
+            emptyMsg.classList.add('hidden');
+            tbody.parentElement.classList.remove('hidden');
+            
+            const groupedOrders = {};
+            orders.forEach(s => {
+                const clientName = s.cliente ? s.cliente.trim() : 'Sem Nome';
+                const normalized = normalizeName(clientName);
+                if (!groupedOrders[normalized]) {
+                    groupedOrders[normalized] = {
+                        clientName: clientName,
+                        orders: [],
+                        totalDebt: 0,
+                        totalValue: 0,
+                        totalPaid: 0,
+                        pendingDeliveries: 0
+                    };
+                }
+                groupedOrders[normalized].orders.push(s);
+                const valPago = Number(s.valor_pago || 0);
+                groupedOrders[normalized].totalValue += Number(s.total);
+                groupedOrders[normalized].totalPaid += valPago;
+                groupedOrders[normalized].totalDebt += (Number(s.total) - valPago);
+                if (!s.status_entrega || s.status_entrega === 'PENDENTE' || s.status_entrega === 'PARCIAL') {
+                    groupedOrders[normalized].pendingDeliveries++;
+                }
+            });
+
+            Object.values(groupedOrders).sort((a,b) => b.totalDebt - a.totalDebt).forEach((group, index) => {
+                const containerId = `${togglePrefix}-client-orders-${index}`;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td colspan="6" style="padding: 0; border-bottom: none;">
+                        <div class="client-orders-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: rgba(var(--primary-color-rgb), 0.05); cursor: pointer; border-bottom: 2px solid var(--border-color);" onclick="toggleClientOrders('${containerId}')">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <strong style="font-size: 1.1rem; color: var(--text-primary);">${toTitleCase(group.clientName)}</strong>
+                                <span class="badge ${group.pendingDeliveries > 0 ? 'badge-warning' : 'badge-success'}">${group.orders.length} pedido(s)</span>
                             </div>
-                            <i class="fas fa-chevron-down text-muted" id="icon-client-orders-${index}"></i>
+                            <div style="display: flex; align-items: center; gap: 2rem;">
+                                <div style="text-align: right;">
+                                    <strong class="text-danger" style="font-size: 1.1rem;">Falta: ${formatMoney(group.totalDebt)}</strong>
+                                    <br><small class="text-muted">Total Encomendado: ${formatMoney(group.totalValue)}</small>
+                                </div>
+                                <i class="fas fa-chevron-down text-muted" id="icon-${containerId}"></i>
+                            </div>
                         </div>
-                    </div>
-                    <div id="client-orders-${index}" class="client-orders-content" style="display: none; padding: 1rem; background: rgba(0, 0, 0, 0.01);">
-                        <table class="premium-table" style="background: var(--bg-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;">
-                            <tbody>
-                                ${group.orders.sort((a,b) => new Date(b.data) - new Date(a.data)).map(s => {
-                                    const valPago = Number(s.valor_pago || 0);
-                                    const restante = Number(s.total) - valPago;
-                                    return `
-                                        <tr>
-                                            <td style="padding-left: 1.5rem;"><strong>#${s.id}</strong></td>
-                                            <td><span class="text-muted">${formatDate(s.data)}</span></td>
-                                            <td><strong>${formatMoney(Number(s.total))}</strong><br><small class="text-muted text-accent" style="font-weight: 500">${valPago > 0 ? `Pago: ${formatMoney(valPago)}<br>` : ''}Falta: ${formatMoney(restante)}</small></td>
-                                            <td><span class="badge ${s.status_entrega === 'ENTREGUE' ? 'badge-success' : 'badge-warning'}">${s.status_entrega || 'PENDENTE'}</span></td>
-                                            <td class="text-right" style="padding-right: 1.5rem;">
-                                                <button class="btn btn-ghost btn-small" onclick="viewSaleDetails('${s.id}')"><i class="fas fa-eye"></i> Detalhes</button>
-                                                ${(!s.status_entrega || s.status_entrega === 'PENDENTE') ? `<button class="btn btn-ghost btn-small text-danger" onclick="cancelOrder('${s.id}')"><i class="fas fa-trash"></i></button>` : ''}
-                                            </td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
+                        <div id="${containerId}" class="client-orders-content" style="display: none; padding: 1rem; background: rgba(0, 0, 0, 0.01);">
+                            <table class="premium-table" style="background: var(--bg-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;">
+                                <tbody>
+                                    ${group.orders.sort((a,b) => new Date(b.data) - new Date(a.data)).map(s => {
+                                        const valPago = Number(s.valor_pago || 0);
+                                        const restante = Number(s.total) - valPago;
+                                        return `
+                                            <tr>
+                                                <td style="padding-left: 1.5rem;"><strong>#${s.id}</strong></td>
+                                                <td><span class="text-muted">${formatDate(s.data)}</span></td>
+                                                <td><strong>${formatMoney(Number(s.total))}</strong><br><small class="text-muted text-accent" style="font-weight: 500">${valPago > 0 ? `Pago: ${formatMoney(valPago)}<br>` : ''}Falta: ${formatMoney(restante)}</small></td>
+                                                <td><span class="badge ${s.status_entrega === 'ENTREGUE' ? 'badge-success' : 'badge-warning'}">${s.status_entrega || 'PENDENTE'}</span></td>
+                                                <td class="text-right" style="padding-right: 1.5rem;">
+                                                    <button class="btn btn-ghost btn-small" onclick="viewSaleDetails('${s.id}')"><i class="fas fa-eye"></i> Detalhes</button>
+                                                    ${(!s.status_entrega || s.status_entrega === 'PENDENTE') ? `<button class="btn btn-ghost btn-small text-danger" onclick="cancelOrder('${s.id}')"><i class="fas fa-trash"></i></button>` : ''}
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    };
+
+    renderGroupedTable(pendingDeliveryOrders, 'orders-table-body', 'empty-orders-msg', 'pending');
+    renderGroupedTable(deliveredOrders, 'delivered-orders-table-body', 'empty-delivered-orders-msg', 'delivered');
 };
 
 window.toggleClientOrders = (containerId) => {

@@ -641,9 +641,9 @@
              </div>
           </div>
 
-          <!-- Orders Table -->
+          <!-- Pending Orders Table -->
           <div class="glass-table-container mt-4">
-            <h3 class="section-title">Lista de Encomendas</h3>
+            <h3 class="section-title text-warning"><i class="fas fa-clock"></i> Encomendas Pendentes de Entrega</h3>
             <table class="premium-table">
               <thead>
                 <tr>
@@ -661,7 +661,31 @@
             </table>
             <div id="empty-orders-msg" class="empty-state">
               <i class="fas fa-truck-loading"></i>
-              <p>Nenhuma encomenda pendente.</p>
+              <p>Nenhuma encomenda pendente de entrega.</p>
+            </div>
+          </div>
+
+          <!-- Delivered Orders Table -->
+          <div class="glass-table-container mt-4">
+            <h3 class="section-title text-success"><i class="fas fa-check-circle"></i> Encomendas Já Entregues (Pendentes de Pagamento)</h3>
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Cód.</th>
+                  <th>Data Pedido</th>
+                  <th>Cliente</th>
+                  <th>Total (R$)</th>
+                  <th>Itens</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="delivered-orders-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-delivered-orders-msg" class="empty-state">
+              <i class="fas fa-box-open"></i>
+              <p>Nenhuma encomenda entregue pendente de pagamento.</p>
             </div>
           </div>
         </div>
