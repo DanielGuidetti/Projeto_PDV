@@ -250,10 +250,12 @@ document.getElementById('btn-new-product').addEventListener('click', () => {
 const toggleStockInput = () => {
     const isChecked = document.getElementById('prod-control-stock').checked;
     const stockInput = document.getElementById('prod-stock');
+    const allowNegativeInput = document.getElementById('prod-allow-negative');
     const isEditing = !!document.getElementById('prod-id').value;
     
     stockInput.disabled = !isChecked || isEditing;
     stockInput.required = isChecked && !isEditing;
+    if (allowNegativeInput) allowNegativeInput.disabled = !isChecked;
     if (!isChecked) {
         stockInput.value = '';
     }
@@ -281,6 +283,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
     const estoque = parseFloat(document.getElementById('prod-stock').value) || 0;
     const pesavel = document.getElementById('prod-pesavel').checked;
     const controlar_estoque = document.getElementById('prod-control-stock').checked;
+    const permitir_estoque_negativo = document.getElementById('prod-allow-negative')?.checked || false;
 
     // Lógica Segura de PLU Auto-Incremental (Preenchimento de Lacunas)
     if (!PLU && !prodId) {
@@ -298,7 +301,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
         return;
     }
 
-    const newProduct = { PLU, nome, preco, custo, estoque, pesavel, controlar_estoque, user_id: state.currentUser.id }; // id gerado automaticamente pelo banco
+    const newProduct = { PLU, nome, preco, custo, estoque, pesavel, controlar_estoque, permitir_estoque_negativo, user_id: state.currentUser.id }; // id gerado automaticamente pelo banco
 
     try {
         if (prodId) {
@@ -365,6 +368,9 @@ window.editProduct = (id) => {
     document.getElementById('prod-stock').value = product.estoque;
     document.getElementById('prod-pesavel').checked = !!product.pesavel;
     document.getElementById('prod-control-stock').checked = product.controlar_estoque !== false;
+    if (document.getElementById('prod-allow-negative')) {
+        document.getElementById('prod-allow-negative').checked = !!product.permitir_estoque_negativo;
+    }
     toggleStockInput();
 
     productModal.classList.add('active');
@@ -790,15 +796,13 @@ const renderPosCatalog = (searchTerm = '') => {
             <span class="name">${p.nome}</span>
             <span class="price">${formatMoney(p.preco)}</span>
         `;
-        if (!isOutOfStock) {
-            card.addEventListener('click', (e) => {
-                const currentCard = e.currentTarget;
-                currentCard.classList.remove('anim-flash');
-                void currentCard.offsetWidth;
-                currentCard.classList.add('anim-flash');
-                addToCart(p);
-            });
-        }
+        card.addEventListener('click', (e) => {
+            const currentCard = e.currentTarget;
+            currentCard.classList.remove('anim-flash');
+            void currentCard.offsetWidth;
+            currentCard.classList.add('anim-flash');
+            addToCart(p);
+        });
         grid.appendChild(card);
     });
 };
@@ -906,18 +910,21 @@ const triggerCartPop = () => {
 const addToCart = (product, requestedQty = 1) => {
     const existing = state.cart.find(item => item.product.id === product.id);
     if (existing) {
-        if (product.controlar_estoque !== false && existing.qty + requestedQty > product.estoque) {
+        if (product.controlar_estoque !== false && product.permitir_estoque_negativo !== true && existing.qty + requestedQty > product.estoque) {
             showToast('Estoque insuficiente para a quantidade.', 'error');
             return;
         }
         existing.qty += requestedQty;
     } else {
-        if (product.controlar_estoque !== false) {
+        if (product.controlar_estoque !== false && product.permitir_estoque_negativo !== true) {
             if (product.estoque < requestedQty && product.estoque > 0) {
                showToast('Estoque insuficiente.', 'error');
                return;
             }
-            if (product.estoque <= 0) return;
+            if (product.estoque <= 0) {
+               showToast('Estoque esgotado.', 'error');
+               return;
+            }
         }
         state.cart.push({ product, qty: requestedQty });
     }
@@ -932,7 +939,7 @@ window.updateCartQty = (productId, delta) => {
     const newQty = item.qty + delta;
     if (newQty <= 0) {
         state.cart = state.cart.filter(i => String(i.product.id) !== String(productId));
-    } else if (item.product.controlar_estoque !== false && newQty > item.product.estoque) {
+    } else if (item.product.controlar_estoque !== false && item.product.permitir_estoque_negativo !== true && newQty > item.product.estoque) {
         showToast('Limite de estoque atingido.', 'error');
     } else {
         item.qty = newQty;

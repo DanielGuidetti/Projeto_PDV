@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.produtos (
     estoque NUMERIC(10, 3) NOT NULL DEFAULT 0,
     pesavel BOOLEAN NOT NULL DEFAULT false,
     controlar_estoque BOOLEAN NOT NULL DEFAULT true,
+    permitir_estoque_negativo BOOLEAN NOT NULL DEFAULT false,
     user_id UUID, -- Registra quem criou (opcional)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE("PLU")
@@ -36,6 +37,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='produtos' AND column_name='custo') THEN
         ALTER TABLE public.produtos ADD COLUMN custo NUMERIC(10, 2) DEFAULT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='produtos' AND column_name='permitir_estoque_negativo') THEN
+        ALTER TABLE public.produtos ADD COLUMN permitir_estoque_negativo BOOLEAN NOT NULL DEFAULT false;
     END IF;
 END $$;
 

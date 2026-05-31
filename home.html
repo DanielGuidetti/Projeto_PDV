@@ -125,6 +125,10 @@
                   <input type="checkbox" id="prod-control-stock" style="width: auto;" checked>
                   <label for="prod-control-stock" style="margin-bottom: 0;">Controlar estoque para este produto</label>
                 </div>
+                <div class="input-group" style="display: flex; align-items: center; gap: 0.5rem; grid-column: 1 / -1; margin-top: 0.5rem;">
+                  <input type="checkbox" id="prod-allow-negative" style="width: auto;">
+                  <label for="prod-allow-negative" style="margin-bottom: 0;">Permitir estoque negativo (vender sem estoque)</label>
+                </div>
                 <div class="input-group">
                   <label>Quantidade em Estoque</label>
                   <input type="number" id="prod-stock" required placeholder="0" min="0.001" step="any">
