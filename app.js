@@ -774,8 +774,19 @@ const renderPosCatalog = (searchTerm = '') => {
     const grid = document.getElementById('pos-products-grid');
     grid.innerHTML = '';
     
+    const term = searchTerm.trim().toLowerCase();
+    
+    if (term === '') {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1/-1">
+                <i class="fas fa-search" style="font-size: 2.5rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                <p>Digite algo na busca para ver os produtos.</p>
+            </div>
+        `;
+        return;
+    }
+    
     const filtered = state.products.filter(p => {
-        const term = searchTerm.toLowerCase();
         return p.nome.toLowerCase().includes(term) || p.PLU.includes(term);
     });
     
@@ -1227,17 +1238,22 @@ const printReceipt = (sale) => {
         </div>
         <div class="print-divider"></div>
         <div style="font-weight: bold; display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span>Item</span>
+            <div style="display: flex; flex: 1;">
+                <span style="min-width: 22px; display: inline-block;"></span>
+                <span>Item</span>
+            </div>
             <span>Total</span>
         </div>
     `;
 
-    sale.itens.forEach(item => {
+    sale.itens.forEach((item, index) => {
         const itemTotal = item.qty * item.preco;
         const qtyDisplay = (item.qty % 1 !== 0) ? item.qty.toFixed(3).replace('.', ',') + 'kg' : item.qty + 'un';
+        const itemNum = String(index + 1).padStart(2, '0');
         
         html += `
-            <div class="print-item">
+            <div class="print-item" style="display: flex; align-items: flex-start; margin-bottom: 6px;">
+                <span style="min-width: 22px; display: inline-block; text-align: left;">${itemNum}</span>
                 <div class="print-item-col" style="flex: 1; text-align: left; padding-right: 5px;">
                     <span>${item.nome}</span>
                     <span style="font-size: 10px;">${qtyDisplay} x ${formatMoney(item.preco)}</span>
@@ -1275,6 +1291,7 @@ const printReceipt = (sale) => {
     html += `
         <div class="print-footer">
             ${footerMessage}
+            <div style="margin-top: 10px; font-size: 11px; font-weight: bold; border-top: 1px dashed #000; padding-top: 8px;">*Cupom sem valor fiscal</div>
         </div>
     `;
 

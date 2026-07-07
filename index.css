@@ -1058,7 +1058,8 @@ nav#sidebar.hidden { display: none; }
 
 /* ===== Print Styles ===== */
 @media print {
-    body { background: #fff !important; color: #000 !important; background-image: none !important; }
+    @page { margin: 3mm; }
+    body { margin: 0; padding: 0; background: #fff !important; color: #000 !important; background-image: none !important; }
     #app, #toast-container, .modal { display: none !important; }
     #print-receipt { display: block !important; }
     
@@ -1067,7 +1068,7 @@ nav#sidebar.hidden { display: none; }
         width: 100%;
         max-width: 80mm;
         margin: 0 auto;
-        padding: 15px;
+        padding: 10px 8px;
         font-size: 12px;
         color: #000;
         background: #fff;
