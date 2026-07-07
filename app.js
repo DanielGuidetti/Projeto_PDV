@@ -11,7 +11,8 @@ const state = {
     sales: [],
     cart: [],
     movimentacoes: [],
-    receitas: []
+    receitas: [],
+    pendingSaleForPrint: null
 };
 
 /* ===== Supabase Initialization ===== */
@@ -1214,7 +1215,8 @@ const completeCheckout = async (method, valorPago = null, troco = null) => {
         showToast(method === 'ENCOMENDA' ? `Encomenda registrada com sucesso!` : `Venda ${registeredSale.id || ''} finalizada com sucesso!`, 'success');
 
         if (method !== 'ENCOMENDA') {
-            printReceipt(registeredSale);
+            state.pendingSaleForPrint = registeredSale;
+            document.getElementById('print-confirm-modal').classList.add('active');
         }
         
     } catch (err) {
@@ -1252,11 +1254,11 @@ const printReceipt = (sale) => {
         const itemNum = String(index + 1).padStart(2, '0');
         
         html += `
-            <div class="print-item" style="display: flex; align-items: flex-start; margin-bottom: 6px;">
+            <div class="print-item" style="display: flex; align-items: flex-start;">
                 <span style="min-width: 22px; display: inline-block; text-align: left;">${itemNum}</span>
                 <div class="print-item-col" style="flex: 1; text-align: left; padding-right: 5px;">
                     <span>${item.nome}</span>
-                    <span style="font-size: 10px;">${qtyDisplay} x ${formatMoney(item.preco)}</span>
+                    <span style="font-size: 12px;">${qtyDisplay} x ${formatMoney(item.preco)}</span>
                 </div>
                 <div>${formatMoney(itemTotal)}</div>
             </div>
@@ -1266,32 +1268,23 @@ const printReceipt = (sale) => {
     html += `
         <div class="print-divider"></div>
         <div class="print-total">TOTAL: ${formatMoney(Number(sale.total))}</div>
-        <div style="text-align: right; font-size: 11px; margin-top: 5px;">Pgto: ${sale.forma_pagamento}</div>
+        <div style="text-align: right; font-size: 12px; margin-top: 3px;">Pgto: ${sale.forma_pagamento}</div>
     `;
 
     if (sale.forma_pagamento === 'DINHEIRO' && sale.valor_pago !== undefined && sale.troco !== undefined) {
         html += `
-            <div style="text-align: right; font-size: 11px;">Recebido: ${formatMoney(Number(sale.valor_pago))}</div>
-            <div style="text-align: right; font-size: 11px;">Troco: ${formatMoney(Number(sale.troco))}</div>
+            <div style="text-align: right; font-size: 12px;">Recebido: ${formatMoney(Number(sale.valor_pago))}</div>
+            <div style="text-align: right; font-size: 12px;">Troco: ${formatMoney(Number(sale.troco))}</div>
         `;
     }
 
     let footerMessage = state.receiptConfig.footerMsg;
-    if (sale.cliente && sale.cliente.trim() !== '') {
-        const displayCliente = toTitleCase(sale.cliente);
-        if (footerMessage.includes('{cliente}')) {
-            footerMessage = footerMessage.replace('{cliente}', displayCliente);
-        } else {
-            footerMessage = `Cliente: ${displayCliente}<br>` + footerMessage;
-        }
-    } else {
-        footerMessage = footerMessage.replace('{cliente}', '').replace(' ,', ',').replace('  ', ' ').trim();
-    }
+    footerMessage = footerMessage.replace('{cliente}', '').replace(' ,', ',').replace('  ', ' ').trim();
 
     html += `
         <div class="print-footer">
             ${footerMessage}
-            <div style="margin-top: 10px; font-size: 11px; font-weight: bold; border-top: 1px dashed #000; padding-top: 8px;">*Cupom sem valor fiscal</div>
+            <div style="margin-top: 5px; font-size: 11px; font-weight: bold; border-top: 1px dashed #000; padding-top: 4px;">*Cupom sem valor fiscal</div>
         </div>
     `;
 
@@ -2248,6 +2241,36 @@ document.getElementById('scale-config-form')?.addEventListener('submit', async (
     }
 });
 
+
+/* ===== Print Confirm Modal Logic ===== */
+const printConfirmModal = document.getElementById('print-confirm-modal');
+const btnPrintYes = document.getElementById('btn-print-yes');
+const btnPrintNo = document.getElementById('btn-print-no');
+
+const handlePrintDecision = (print) => {
+    if (!printConfirmModal || !printConfirmModal.classList.contains('active')) return;
+    
+    printConfirmModal.classList.remove('active');
+    if (print && state.pendingSaleForPrint) {
+        printReceipt(state.pendingSaleForPrint);
+    }
+    state.pendingSaleForPrint = null;
+};
+
+if (btnPrintYes) btnPrintYes.addEventListener('click', () => handlePrintDecision(true));
+if (btnPrintNo) btnPrintNo.addEventListener('click', () => handlePrintDecision(false));
+
+document.addEventListener('keydown', (e) => {
+    if (printConfirmModal && printConfirmModal.classList.contains('active')) {
+        if (e.key === '1') {
+            e.preventDefault();
+            handlePrintDecision(true);
+        } else if (e.key === '0') {
+            e.preventDefault();
+            handlePrintDecision(false);
+        }
+    }
+});
 
 /* ===== App Initialization ===== */
 // Start App

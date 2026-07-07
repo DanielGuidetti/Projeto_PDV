@@ -1058,33 +1058,34 @@ nav#sidebar.hidden { display: none; }
 
 /* ===== Print Styles ===== */
 @media print {
-    @page { margin: 3mm; }
+    @page { margin: 0; }
     body { margin: 0; padding: 0; background: #fff !important; color: #000 !important; background-image: none !important; }
     #app, #toast-container, .modal { display: none !important; }
     #print-receipt { display: block !important; }
     
     #print-receipt {
         font-family: monospace;
-        width: 100%;
+        width: calc(100% - 4mm);
         max-width: 80mm;
-        margin: 0 auto;
-        padding: 10px 8px;
+        margin: 1mm auto;
+        padding: 5px 3px;
         font-size: 12px;
+        line-height: 1.1;
         color: #000;
         background: #fff;
     }
     
-    .print-header { text-align: center; margin-bottom: 10px; }
-    .print-header h1 { font-size: 16px; margin: 0 0 4px; padding: 0; }
-    .print-header p { margin: 2px 0; font-size: 11px; }
+    .print-header { text-align: center; margin-bottom: 5px; }
+    .print-header h1 { font-size: 15px; margin: 0 0 2px; padding: 0; }
+    .print-header p { margin: 1px 0; font-size: 12px; }
     
-    .print-divider { border-top: 1px dashed #000; margin: 8px 0; border-color: #000 !important; }
+    .print-divider { border-top: 1px dashed #000; margin: 3px 0; border-color: #000 !important; }
     
-    .print-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .print-item { display: flex; justify-content: space-between; margin-bottom: 1px; }
     .print-item-col { display: flex; flex-direction: column; }
     
-    .print-total { text-align: right; font-weight: bold; font-size: 14px; margin-top: 10px; }
-    .print-footer { text-align: center; margin-top: 20px; font-weight: bold; font-size: 12px; }
+    .print-total { text-align: right; font-weight: bold; font-size: 14px; margin-top: 4px; }
+    .print-footer { text-align: center; margin-top: 5px; font-weight: bold; font-size: 12px; }
 }
 
 /* Forca estilos absolutos no div do html2pdf para capturar preto no branco fora do media query */
