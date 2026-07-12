@@ -12,7 +12,12 @@ const state = {
     cart: [],
     movimentacoes: [],
     receitas: [],
-    pendingSaleForPrint: null
+    pendingSaleForPrint: null,
+    scalePort: null,
+    scaleReader: null,
+    scaleKeepReading: false,
+    currentScaleWeight: 0,
+    isScaleConnected: false
 };
 
 /* ===== Supabase Initialization ===== */
@@ -919,7 +924,34 @@ const triggerCartPop = () => {
     }
 };
 
-const addToCart = (product, requestedQty = 1) => {
+const addToCart = (product, requestedQty = 1, fromScaleConfirm = false) => {
+    // Intercept if it's a weighable product and we are not confirming from the scale modal
+    if (product.pesavel && requestedQty === 1 && !fromScaleConfirm) {
+        pendingWeightProduct = product;
+        document.getElementById('weight-product-name').textContent = product.nome;
+        
+        const modal = document.getElementById('weight-capture-modal');
+        const activeReader = document.getElementById('weight-reader-active');
+        const manualReader = document.getElementById('weight-reader-manual');
+        const manualInput = document.getElementById('weight-manual-input');
+        
+        if (state.isScaleConnected) {
+            activeReader.style.display = 'block';
+            manualReader.style.display = 'none';
+            document.getElementById('weight-live-value').textContent = state.currentScaleWeight.toFixed(3).replace('.', ',') + ' kg';
+        } else {
+            activeReader.style.display = 'none';
+            manualReader.style.display = 'block';
+            manualInput.value = '';
+        }
+        
+        modal.classList.add('active');
+        if (!state.isScaleConnected) {
+            setTimeout(() => manualInput.focus(), 100);
+        }
+        return;
+    }
+
     const existing = state.cart.find(item => item.product.id === product.id);
     if (existing) {
         if (product.controlar_estoque !== false && product.permitir_estoque_negativo !== true && existing.qty + requestedQty > product.estoque) {
@@ -1309,6 +1341,207 @@ document.getElementById('btn-clear-cart').addEventListener('click', () => {
         renderCart();
     }
 });
+
+/* ===== Modules: Checkout Scale (Web Serial API) ===== */
+window.connectScale = async () => {
+    try {
+        if (state.scalePort) {
+            showToast('Balança já conectada.', 'info');
+            return;
+        }
+
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+
+        state.scalePort = port;
+        state.isScaleConnected = true;
+        state.scaleKeepReading = true;
+        
+        showToast('Balança Ramuza conectada!', 'success');
+        updateScaleUI(true);
+        
+        readScaleLoop();
+        navigateTo('screen-pos'); 
+    } catch (e) {
+        console.error('Erro ao conectar balança:', e);
+        showToast('Erro ao conectar balança (Cancelado ou sem permissão).', 'error');
+    }
+};
+
+const updateScaleUI = (connected) => {
+    const icon = document.getElementById('scale-icon');
+    const display = document.getElementById('scale-weight-display');
+    if (!icon || !display) return;
+    
+    if (connected) {
+        icon.classList.remove('text-danger');
+        icon.classList.add('text-success');
+        display.style.color = 'var(--success-color)';
+    } else {
+        icon.classList.remove('text-success');
+        icon.classList.add('text-danger');
+        display.style.color = 'var(--text-secondary)';
+        display.textContent = '-- kg';
+    }
+};
+
+// Update live value in modal if it's open
+const updateLiveModalValue = (weightStr) => {
+    const liveVal = document.getElementById('weight-live-value');
+    if (liveVal && document.getElementById('weight-capture-modal').classList.contains('active')) {
+        liveVal.textContent = weightStr;
+    }
+};
+
+const updateWeightState = (weight) => {
+    state.currentScaleWeight = weight;
+    const displayStr = weight.toFixed(3).replace('.', ',') + ' kg';
+    const display = document.getElementById('scale-weight-display');
+    if (display) display.textContent = displayStr;
+    updateLiveModalValue(displayStr);
+};
+
+const readScaleLoop = async () => {
+    while (state.scalePort && state.scaleKeepReading) {
+        state.scaleReader = state.scalePort.readable.getReader();
+        try {
+            let buffer = '';
+            while (true) {
+                const { value, done } = await state.scaleReader.read();
+                if (done) break;
+                
+                const chunk = new TextDecoder().decode(value);
+                buffer += chunk;
+                
+                // Mantém buffer curto
+                if (buffer.length > 150) buffer = buffer.slice(-150);
+                
+                // Print no console para diagnóstico caso o usuário precise
+                // console.log("RAW SCALE:", buffer);
+
+                // Estratégia 1: Padrão Toledo/Filizola STX (0x02) ... ETX (0x03)
+                const stxIndex = buffer.lastIndexOf(String.fromCharCode(2));
+                const etxIndex = buffer.lastIndexOf(String.fromCharCode(3));
+                
+                if (stxIndex !== -1 && etxIndex !== -1 && etxIndex > stxIndex) {
+                    const packet = buffer.substring(stxIndex + 1, etxIndex);
+                    const numStr = packet.replace(/[^0-9]/g, ''); // Extract only numbers
+                    
+                    if (numStr.length >= 4) {
+                        const weight = parseInt(numStr, 10) / 1000;
+                        updateWeightState(weight);
+                        buffer = buffer.substring(etxIndex + 1);
+                        continue;
+                    }
+                }
+
+                // Estratégia 2: Ramuza / Genéricas que enviam números separados por Enter (\r ou \n)
+                const lines = buffer.split(/[\r\n\x02\x03]+/);
+                if (lines.length > 1) {
+                    let parsed = false;
+                    for (let i = lines.length - 2; i >= 0; i--) { // Pega a última linha completa
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        
+                        // Se for um decimal explícito ex: "0.085" ou "0,085"
+                        if (line.includes('.') || line.includes(',')) {
+                            const weight = parseFloat(line.replace(',', '.').replace(/[^0-9.]/g, ''));
+                            if (!isNaN(weight)) {
+                                updateWeightState(weight);
+                                parsed = true;
+                                break;
+                            }
+                        } else {
+                            // Se for apenas dígitos ex: "00085"
+                            const numStr = line.replace(/[^0-9]/g, '');
+                            if (numStr.length >= 4 && numStr.length <= 6) {
+                                const weight = parseInt(numStr, 10) / 1000;
+                                updateWeightState(weight);
+                                parsed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (parsed) {
+                        buffer = lines[lines.length - 1]; // Mantém só o restinho incompleto
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Erro na leitura da balança:', error);
+            state.isScaleConnected = false;
+            state.scaleKeepReading = false;
+            updateScaleUI(false);
+        } finally {
+            if (state.scaleReader) {
+                try { state.scaleReader.releaseLock(); } catch(e) {}
+            }
+            if (state.scalePort) {
+                try { await state.scalePort.close(); } catch(e) {}
+            }
+            state.scalePort = null;
+        }
+    }
+};
+
+let pendingWeightProduct = null;
+window.cancelWeightCapture = () => {
+    document.getElementById('weight-capture-modal').classList.remove('active');
+    pendingWeightProduct = null;
+    const searchInput = document.getElementById('pos-search');
+    if (searchInput) {
+       searchInput.value = '';
+       searchInput.focus();
+    }
+};
+
+const confirmScaleWeight = () => {
+    if (!pendingWeightProduct) return;
+    
+    let weight = 0;
+    if (state.isScaleConnected) {
+        weight = state.currentScaleWeight;
+    } else {
+        weight = parseFloat(document.getElementById('weight-manual-input').value.replace(',', '.'));
+    }
+    
+    if (isNaN(weight) || weight <= 0) {
+        showToast('Peso inválido.', 'error');
+        return;
+    }
+    
+    document.getElementById('weight-capture-modal').classList.remove('active');
+    
+    addToCart(pendingWeightProduct, weight, true);
+    pendingWeightProduct = null;
+    
+    const searchInput = document.getElementById('pos-search');
+    if (searchInput) {
+       searchInput.value = '';
+       searchInput.focus();
+    }
+};
+
+if (document.getElementById('btn-confirm-weight')) {
+    document.getElementById('btn-confirm-weight').addEventListener('click', confirmScaleWeight);
+}
+
+document.getElementById('weight-manual-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmScaleWeight();
+});
+
+// Suporte para Enter no modal quando a balança estiver lendo automaticamente
+document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('weight-capture-modal');
+    if (e.key === 'Enter' && modal && modal.classList.contains('active')) {
+        // Se a balança estiver conectada (e o input manual escondido), o Enter confirma o peso vivo
+        if (state.isScaleConnected) {
+            e.preventDefault();
+            confirmScaleWeight();
+        }
+    }
+});
+
 
 /* ===== Modules: Encomendas ===== */
 let currentDeliveryOrderId = null;
