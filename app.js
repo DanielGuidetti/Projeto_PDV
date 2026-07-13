@@ -1377,11 +1377,22 @@ const updateScaleUI = (connected) => {
         icon.classList.remove('text-danger');
         icon.classList.add('text-success');
         display.style.color = 'var(--success-color)';
+        
+        // Updates labels screen if active
+        if (document.getElementById('label-weight-active')) {
+            document.getElementById('label-weight-active').style.display = 'block';
+            document.getElementById('label-weight-manual').style.display = 'none';
+        }
     } else {
         icon.classList.remove('text-success');
         icon.classList.add('text-danger');
         display.style.color = 'var(--text-secondary)';
         display.textContent = '-- kg';
+        
+        if (document.getElementById('label-weight-active')) {
+            document.getElementById('label-weight-active').style.display = 'none';
+            document.getElementById('label-weight-manual').style.display = 'block';
+        }
     }
 };
 
@@ -1399,6 +1410,12 @@ const updateWeightState = (weight) => {
     const display = document.getElementById('scale-weight-display');
     if (display) display.textContent = displayStr;
     updateLiveModalValue(displayStr);
+    
+    // Updates label preview if it exists
+    if (document.getElementById('label-live-value')) {
+        document.getElementById('label-live-value').textContent = displayStr;
+        if (typeof refreshLabelPreview === 'function') refreshLabelPreview();
+    }
 };
 
 const readScaleLoop = async () => {
@@ -2534,3 +2551,231 @@ document.addEventListener('keydown', (e) => {
     await loadData();
     navigateTo('screen-pos');
 })();
+/* ===== Modules: Label Generator ===== */
+let selectedLabelProduct = null;
+
+document.getElementById('label-product-search')?.addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase().trim();
+    const resultsUl = document.getElementById('label-product-results');
+    resultsUl.innerHTML = '';
+    
+    if (!term) {
+        resultsUl.classList.add('hidden');
+        return;
+    }
+    
+    const matches = state.products.filter(p => p.pesavel && (p.nome.toLowerCase().includes(term) || String(p.PLU).includes(term) || String(p.id).includes(term))).slice(0, 5);
+    
+    if (matches.length > 0) {
+        matches.forEach(p => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${p.nome}</strong> <small class="text-muted">#${p.PLU || p.id} - R$ ${p.preco}</small>`;
+            li.addEventListener('click', () => selectLabelProduct(p));
+            resultsUl.appendChild(li);
+        });
+        resultsUl.classList.remove('hidden');
+    } else {
+        resultsUl.classList.add('hidden');
+    }
+});
+
+window.selectLabelProduct = (product) => {
+    selectedLabelProduct = product;
+    document.getElementById('label-product-search').value = '';
+    document.getElementById('label-product-results').classList.add('hidden');
+    
+    document.getElementById('label-selected-product').style.display = 'block';
+    document.getElementById('label-prod-name').textContent = product.nome;
+    document.getElementById('label-prod-price').textContent = formatMoney(product.preco);
+    
+    // Update preview
+    document.getElementById('lbl-prod-name').textContent = product.nome;
+    document.getElementById('lbl-price-kg').textContent = formatMoney(product.preco);
+    document.getElementById('lbl-store-name').textContent = state.receiptConfig?.storeName || 'LOJA';
+    
+    const today = new Date();
+    document.getElementById('lbl-date').textContent = formatDate(today.toISOString());
+    
+    refreshLabelPreview();
+};
+
+window.clearLabelProduct = () => {
+    selectedLabelProduct = null;
+    document.getElementById('label-selected-product').style.display = 'none';
+    document.getElementById('lbl-prod-name').textContent = 'Nenhum produto selecionado';
+    document.getElementById('lbl-price-kg').textContent = 'R$ 0,00';
+    document.getElementById('lbl-weight').textContent = '0,000 kg';
+    document.getElementById('lbl-total').textContent = 'R$ 0,00';
+    document.getElementById('btn-add-label-queue').disabled = true;
+    
+    const svg = document.getElementById('lbl-barcode');
+    if (svg) svg.innerHTML = '';
+    const text = document.getElementById('lbl-barcode-text');
+    if (text) text.textContent = '';
+};
+
+window.refreshLabelPreview = () => {
+    if (!selectedLabelProduct) return;
+    
+    let weight = state.isScaleConnected ? state.currentScaleWeight : parseFloat(document.getElementById('label-manual-input')?.value.replace(',', '.') || 0);
+    
+    if (isNaN(weight) || weight <= 0) {
+        document.getElementById('btn-add-label-queue').disabled = true;
+        return;
+    }
+    
+    const total = weight * selectedLabelProduct.preco;
+    
+    document.getElementById('lbl-weight').textContent = weight.toFixed(3).replace('.', ',') + ' kg';
+    document.getElementById('lbl-total').textContent = formatMoney(total);
+    document.getElementById('btn-add-label-queue').disabled = false;
+    
+    generateLabelBarcode(selectedLabelProduct, weight, total);
+};
+
+document.getElementById('label-manual-input')?.addEventListener('input', refreshLabelPreview);
+
+const generateLabelBarcode = (product, weight, total) => {
+    const cfg = state.scaleConfig;
+    
+    // Fallback default config se não estiver configurado no banco: Prefix=2, PLU=5, Val=6, type=price
+    const prefixLen = cfg ? cfg.prefix_length : 1;
+    const pluLen = cfg ? cfg.plu_length : 5;
+    const valLen = cfg ? cfg.value_length : 6;
+    const isPrice = cfg ? (cfg.value_type === 'price') : true;
+    
+    let prefixStr = '2'.padEnd(prefixLen, '0');
+    let pluStr = String(product.PLU || product.id).slice(0, pluLen).padStart(pluLen, '0');
+    
+    let valStr = '';
+    if (isPrice) {
+        valStr = String(Math.round(total * 100)).slice(0, valLen).padStart(valLen, '0');
+    } else {
+        valStr = String(Math.round(weight * 1000)).slice(0, valLen).padStart(valLen, '0');
+    }
+    
+    let code12 = prefixStr + pluStr + valStr;
+    if (code12.length > 12) code12 = code12.substring(0, 12);
+    if (code12.length < 12) code12 = code12.padEnd(12, '0');
+    
+    // Calcula Checksum EAN-13
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+        sum += parseInt(code12[i]) * (i % 2 === 0 ? 1 : 3);
+    }
+    const rem = sum % 10;
+    const checksum = rem === 0 ? 0 : 10 - rem;
+    
+    const barcode13 = code12 + checksum;
+    
+    try {
+        if (typeof JsBarcode !== 'undefined') {
+            JsBarcode("#lbl-barcode", barcode13, {
+                format: "EAN13",
+                displayValue: false,
+                height: 40,
+                width: 1.5,
+                margin: 0
+            });
+            document.getElementById('lbl-barcode-text').textContent = barcode13;
+        }
+    } catch (e) {
+        console.error("Erro ao gerar JsBarcode", e);
+    }
+};
+
+window.labelQueue = [];
+
+const updateQueueUI = () => {
+    const list = document.getElementById('label-queue-list');
+    const count = document.getElementById('label-queue-count');
+    const printBtn = document.getElementById('btn-print-queue');
+    
+    count.textContent = window.labelQueue.length;
+    
+    if (window.labelQueue.length === 0) {
+        list.innerHTML = '<li style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">Fila vazia</li>';
+        printBtn.disabled = true;
+        return;
+    }
+    
+    printBtn.disabled = false;
+    list.innerHTML = '';
+    
+    window.labelQueue.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.style.cssText = 'padding: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;';
+        li.innerHTML = `
+            <div style="font-size: 0.85rem; display: flex; flex-direction: column;">
+                <strong>${item.name}</strong>
+                <span class="text-muted">${item.weight} - ${item.total}</span>
+            </div>
+            <button class="btn-icon text-danger" style="padding: 0.2rem;" onclick="removeQueueItem(${index})"><i class="fas fa-times"></i></button>
+        `;
+        list.appendChild(li);
+    });
+};
+
+window.removeQueueItem = (index) => {
+    window.labelQueue.splice(index, 1);
+    updateQueueUI();
+};
+
+document.getElementById('btn-clear-label-queue')?.addEventListener('click', () => {
+    window.labelQueue = [];
+    updateQueueUI();
+});
+
+document.getElementById('btn-add-label-queue')?.addEventListener('click', () => {
+    const labelArea = document.getElementById('label-print-area');
+    if (!labelArea || !selectedLabelProduct) return;
+    
+    const copies = parseInt(document.getElementById('label-add-copies')?.value || 1, 10);
+    const htmlSnippet = labelArea.outerHTML;
+    
+    const itemData = {
+        name: document.getElementById('lbl-prod-name').textContent,
+        weight: document.getElementById('lbl-weight').textContent,
+        total: document.getElementById('lbl-total').textContent,
+        html: htmlSnippet
+    };
+    
+    for(let i = 0; i < copies; i++){
+        window.labelQueue.push(itemData);
+    }
+    
+    updateQueueUI();
+});
+
+document.getElementById('btn-print-queue')?.addEventListener('click', () => {
+    const printEl = document.getElementById('print-receipt');
+    
+    // Força o papel retrato (100x150) pra combinar com a nossa rotação CSS
+    const style = document.createElement('style');
+    style.id = 'dynamic-label-page-style';
+    style.innerHTML = '@page { size: 100mm 150mm; margin: 0; }';
+    document.head.appendChild(style);
+    
+    if (printEl && window.labelQueue.length > 0) {
+        let html = '';
+        window.labelQueue.forEach((item, i) => {
+            html += item.html.replace('id="label-print-area"', `id="label-print-area-${i}"`);
+        });
+        printEl.innerHTML = html;
+        printEl.className = 'printing-label-mode';
+    }
+    
+    setTimeout(() => {
+        window.print();
+        
+        setTimeout(() => {
+            if (printEl) {
+                printEl.innerHTML = '';
+                printEl.className = '';
+            }
+            const injectedStyle = document.getElementById('dynamic-label-page-style');
+            if (injectedStyle) injectedStyle.remove();
+        }, 500);
+    }, 100);
+});
+
