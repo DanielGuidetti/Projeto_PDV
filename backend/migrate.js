@@ -1,8 +1,8 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const SUPABASE_URL = 'https://ljuonnxlpwrrpoiezwyk.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxqdW9ubnhscHdycnBvaWV6d3lrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxOTM4MywiZXhwIjoyMDkwMTk1MzgzfQ.lzqAXivr90k_hvhbzVDLUzUU-FcOhwK5Mg70czFvnN8';
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
 
 const dbPath = path.resolve(__dirname, '../dados/database.sqlite');
 const db = new sqlite3.Database(dbPath);
