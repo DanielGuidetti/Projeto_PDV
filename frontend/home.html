@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <link rel="icon" type="image/png" href="./img/favicon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mercearia - Sistema de Varejo</title>
+  <!-- Modern Typography -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/index.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6366f1">
+</head>
+
+<body>
+  <div id="app">
+    <!-- Sidebar Navigation -->
+    <nav id="sidebar">
+      <div class="sidebar-header">
+        <img src="./img/favicon.png" alt="Logo" style="width: 28px; height: 28px; object-fit: contain;">
+        <h2>Nova Astari</h2>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#" data-route="pos" class="active"><i class="fas fa-cash-register"></i><span>PDV</span></a></li>
+        <li><a href="#" data-route="products"><i class="fas fa-box-open"></i><span>Produtos</span></a></li>
+        <li><a href="#" data-route="stock"><i class="fas fa-boxes"></i><span>Estoque</span></a></li>
+        <li><a href="#" data-route="encomendas"><i class="fas fa-truck-loading"></i><span>Encomendas</span></a></li>
+        <li><a href="#" data-route="reports"><i class="fas fa-chart-pie"></i><span>Relatórios</span></a></li>
+        <li><a href="#" data-route="labels"><i class="fas fa-tags"></i><span>Etiquetas</span></a></li>
+        <li id="nav-settings" style="display:none;"><a href="#" data-route="settings"><i class="fas fa-cog"></i><span>Configurações</span></a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="avatar"><i class="fas fa-user-circle"></i></div>
+          <span id="display-username">Admin</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <a href="financeiro.html" title="Financeiro" style="color: inherit; opacity: 0.4; font-size: 1.1rem; margin-right: 0.8rem; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'"><i class="fas fa-wallet"></i></a>
+            <button id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+
+      <!-- ====== Deleted Login/Register Wrappers ====== -->
+
+      <!-- ====== Product Registration Screen ====== -->
+      <section id="screen-products" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Gestão de Produtos</h2>
+            <p>Adicione e controle seu estoque</p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-primary" onclick="navigateTo('screen-receitas')">
+              <i class="fas fa-book-open"></i> Modo Receita
+            </button>
+            <button class="btn btn-primary" id="btn-new-product">
+              <i class="fas fa-plus"></i> Novo Produto
+            </button>
+          </div>
+        </header>
+
+        <div class="content-container">
+          <div class="search-wrapper glass-element" style="margin-bottom: 1.5rem; display: flex; align-items: center; padding: 0.5rem 1rem;">
+            <i class="fas fa-search text-muted"></i>
+            <input type="text" id="products-search" placeholder="Buscar produtos por código ou nome..." style="width: 100%; padding: 0.5rem; border: none; background: transparent; color: white; outline: none; margin-left: 0.5rem;" autocomplete="off">
+          </div>
+          <div class="glass-table-container">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Cód.</th>
+                  <th>Produto</th>
+                  <th>Preço (R$)</th>
+                  <th>Estoque</th>
+                  <th>Status</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-products-msg" class="empty-state hidden">
+              <i class="fas fa-box-open"></i>
+              <p>Nenhum produto cadastrado.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Product Modal -->
+        <div id="product-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal">
+            <div class="modal-header">
+              <h3 id="product-modal-title">Adicionar Novo Produto</h3>
+              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="product-form">
+              <input type="hidden" id="prod-id" value="">
+              <div class="form-grid">
+                <div class="input-group">
+                  <label>Código de Barras</label>
+                  <input type="text" id="prod-code" placeholder="Auto-incremental se vazio">
+                </div>
+                <div class="input-group">
+                  <label>Código de Referência <span style="font-size: 0.75rem" class="text-muted">(Opcional)</span></label>
+                  <input type="text" id="prod-ref" placeholder="Ex: Código interno da lata">
+                </div>
+                <div class="input-group">
+                  <label>Nome do Produto</label>
+                  <input type="text" id="prod-name" required placeholder="Ex: Arroz Tipo 1">
+                </div>
+                <div class="input-group">
+                  <label>Custo de Compra (R$) <span style="font-size: 0.75rem" class="text-muted">(Opcional)</span></label>
+                  <input type="number" step="0.01" id="prod-cost" placeholder="0.00">
+                </div>
+                <div class="input-group">
+                  <label>Preço de Venda (R$)</label>
+                  <input type="number" step="0.01" id="prod-price" required placeholder="0.00">
+                </div>
+                <div class="input-group" style="display: flex; align-items: center; gap: 0.5rem; grid-column: 1 / -1; margin-top: 0.5rem;">
+                  <input type="checkbox" id="prod-control-stock" style="width: auto;" checked>
+                  <label for="prod-control-stock" style="margin-bottom: 0;">Controlar estoque para este produto</label>
+                </div>
+                <div class="input-group" style="display: flex; align-items: center; gap: 0.5rem; grid-column: 1 / -1; margin-top: 0.5rem;">
+                  <input type="checkbox" id="prod-allow-negative" style="width: auto;">
+                  <label for="prod-allow-negative" style="margin-bottom: 0;">Permitir estoque negativo (vender sem estoque)</label>
+                </div>
+                <div class="input-group">
+                  <label>Quantidade em Estoque</label>
+                  <input type="number" id="prod-stock" required placeholder="0" min="0.001" step="any">
+                </div>
+                <div class="input-group" style="display: flex; align-items: center; gap: 0.5rem; grid-column: 1 / -1; margin-top: 0.5rem;">
+                  <input type="checkbox" id="prod-pesavel" style="width: auto;">
+                  <label for="prod-pesavel" style="margin-bottom: 0;">Produto de balança (vendido por peso/quilo)</label>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-ghost close-modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Salvar Produto</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== Receitas Screen ====== -->
+      <section id="screen-receitas" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Gestão de Receitas</h2>
+            <p>Calcule os custos e registre suas receitas</p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-primary" onclick="navigateTo('screen-products')">
+              <i class="fas fa-box-open"></i> Modo Produtos
+            </button>
+            <button class="btn btn-primary" id="btn-new-recipe">
+              <i class="fas fa-plus"></i> Nova Receita
+            </button>
+          </div>
+        </header>
+
+        <div class="content-container">
+          <div class="search-wrapper glass-element" style="margin-bottom: 1.5rem; display: flex; align-items: center; padding: 0.5rem 1rem;">
+            <i class="fas fa-search text-muted"></i>
+            <input type="text" id="receitas-search" placeholder="Buscar receita por nome..." style="width: 100%; padding: 0.5rem; border: none; background: transparent; color: white; outline: none; margin-left: 0.5rem;" autocomplete="off">
+          </div>
+          <div class="glass-table-container">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Nome da Receita</th>
+                  <th>Rendimento</th>
+                  <th>Custo Total</th>
+                  <th>Custo p/ Unidade</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="recipes-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-recipes-msg" class="empty-state hidden">
+              <i class="fas fa-book-open"></i>
+              <p>Nenhuma receita cadastrada.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recipe Modal / Calculator -->
+        <div id="recipe-calculator-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal" style="max-width: 1100px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+              <h3 id="recipe-modal-title">Cadastrar Receita</h3>
+              <button class="btn-icon close-calc-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="recipe-form">
+              <input type="hidden" id="calc-recipe-id" value="">
+              <div class="form-grid" style="align-items: center; margin-bottom: 1rem;">
+                <div class="input-group">
+                  <label>Nome da Receita</label>
+                  <input type="text" id="calc-recipe-name" required placeholder="Ex: Bolo de Cenoura">
+                </div>
+                <div class="input-group">
+                  <label>Rendimento (Unidades)</label>
+                  <input type="number" id="calc-recipe-yield" required placeholder="Ex: 10" min="0.01" step="any" value="1">
+                </div>
+              </div>
+              
+              <div class="glass-table-container">
+                <table class="premium-table" style="font-size: 0.9rem;">
+                  <thead>
+                    <tr>
+                      <th>Ingrediente</th>
+                      <th>Embalagem (g/ml)</th>
+                      <th>Valor Emb. (R$)</th>
+                      <th>Usado (g/ml)</th>
+                      <th>Custo do Ingrediente</th>
+                      <th class="text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="calc-ingredients-body">
+                    <!-- Linhas dinâmicas -->
+                  </tbody>
+                </table>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-primary btn-small mt-2" id="btn-add-ingredient">
+                    <i class="fas fa-plus"></i> Adicionar Ingrediente
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-small mt-2" id="btn-add-label" style="border: 1px solid var(--border-glass);">
+                    <i class="fas fa-tag"></i> Adicionar Rótulo
+                  </button>
+                </div>
+              </div>
+
+              <div class="calculator-totals mt-4" style="background: rgba(0,0,0,0.1); padding: 1.5rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                  <span class="text-muted" style="display: block; font-size: 0.85rem; margin-bottom: 0.2rem;">Custo da Receita</span>
+                  <span id="calc-total-cost" class="text-warning" style="font-size: 1.8rem; font-weight: 700;">R$ 0,00</span>
+                </div>
+                <div style="text-align: right;">
+                  <span class="text-muted" style="display: block; font-size: 0.85rem; margin-bottom: 0.2rem;">Custo por Unidade</span>
+                  <span id="calc-unit-cost" class="text-success" style="font-size: 2.2rem; font-weight: 700;">R$ 0,00</span>
+                </div>
+              </div>
+
+              <div class="modal-footer" style="justify-content: flex-start; margin-top: 1rem;">
+                <button type="button" class="btn btn-ghost" id="btn-clear-calc"><i class="fas fa-trash-alt text-danger"></i> Limpar Formulário</button>
+                <div style="flex: 1"></div>
+                <button type="button" class="btn btn-ghost close-calc-modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar Receita</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Recipe View Modal (Leitura) -->
+        <div id="recipe-view-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+              <h3 id="view-recipe-title" style="font-size: 1.8rem; color: var(--accent-color);">Nome da Receita</h3>
+              <button class="btn-icon close-view-modal"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="kpi-grid" style="margin-bottom: 2rem;">
+              <div class="kpi-card glass-card" style="padding: 1.5rem;">
+                <div class="kpi-icon gradient-primary"><i class="fas fa-chart-pie"></i></div>
+                <div class="kpi-data">
+                  <span class="label">Rendimento</span>
+                  <h3 id="view-recipe-yield">0 un.</h3>
+                </div>
+              </div>
+              <div class="kpi-card glass-card" style="padding: 1.5rem;">
+                <div class="kpi-icon gradient-info"><i class="fas fa-dollar-sign"></i></div>
+                <div class="kpi-data">
+                  <span class="label">Custo Total</span>
+                  <h3 id="view-recipe-total-cost" class="text-warning">R$ 0,00</h3>
+                </div>
+              </div>
+              <div class="kpi-card glass-card" style="padding: 1.5rem;">
+                <div class="kpi-icon gradient-success"><i class="fas fa-tags"></i></div>
+                <div class="kpi-data">
+                  <span class="label">Custo por Unidade</span>
+                  <h3 id="view-recipe-unit-cost" class="text-success">R$ 0,00</h3>
+                </div>
+              </div>
+            </div>
+            
+            <h4 class="section-title"><i class="fas fa-list"></i> Ingredientes</h4>
+            <div class="glass-table-container">
+              <table class="premium-table">
+                <thead>
+                  <tr>
+                    <th>Ingrediente</th>
+                    <th>Embalagem</th>
+                    <th>Valor Emb.</th>
+                    <th>Usado</th>
+                    <th class="text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody id="view-recipe-ingredients-body">
+                  <!-- Linhas preenchidas via JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <div class="modal-footer" style="justify-content: space-between; margin-top: 2rem;">
+              <div>
+                <button type="button" class="btn btn-ghost" id="btn-delete-view-recipe"><i class="fas fa-trash text-danger"></i> Excluir Receita</button>
+              </div>
+              <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-primary" id="btn-edit-view-recipe"><i class="fas fa-edit"></i> Editar</button>
+                <button type="button" class="btn btn-primary close-view-modal" style="min-width: 150px;">Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== POS (Point of Sale) Screen ====== -->
+      <section id="screen-pos" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Ponto de Venda</h2>
+            <p>Caixa Aberto • Atendimento Rápido</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 1rem;">
+             <div id="scale-indicator" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 0.4rem 0.8rem; border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;" title="Balança Desconectada">
+                <i class="fas fa-balance-scale text-danger" id="scale-icon"></i>
+                <span id="scale-weight-display" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: var(--text-secondary);">-- kg</span>
+             </div>
+             <div class="clock" id="pos-clock">00:00:00</div>
+          </div>
+        </header>
+
+        <div class="pos-layout">
+          <!-- Products Selection Area -->
+          <div class="pos-catalog">
+            <div class="search-wrapper glass-element">
+              <i class="fas fa-search"></i>
+              <input type="text" id="pos-search" placeholder="Buscar por código ou nome (Pressione /)" autocomplete="off">
+              <button class="kbd-hint">/</button>
+            </div>
+            <div class="catalog-grid" id="pos-products-grid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Cart Area -->
+          <div class="pos-cart glass-card">
+            <div class="cart-header">
+              <h3>Cesta de Compras</h3>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="date" id="pos-custom-date" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); border-radius: 4px; padding: 0.25rem 0.5rem; font-size: 0.75rem;" title="Data da Venda (Opcional, preencha apenas para vendas retroativas)">
+                <span class="cart-items-count">0 itens</span>
+              </div>
+            </div>
+
+            <div class="cart-items-list" id="cart-items-container">
+              <!-- Populated by JS -->
+              <div class="empty-state">
+                <i class="fas fa-shopping-basket"></i>
+                <p>Cesta vazia.<br>Selecione produtos ao lado.</p>
+              </div>
+            </div>
+
+            <div class="pos-customer input-group" style="padding: 1rem 1.5rem; margin-bottom: 0;">
+              <input type="text" id="pos-customer-name" placeholder="Nome do Cliente (Opcional)" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: white; width: 100%; border-radius: 8px; padding: 0.8rem;" autocomplete="off">
+            </div>
+
+            <div class="cart-totals">
+              <div class="total-row">
+                <span>Subtotal</span>
+                <span id="cart-subtotal">R$ 0,00</span>
+              </div>
+              <div class="total-row highlight">
+                <span>Total a Pagar</span>
+                <span id="cart-total">R$ 0,00</span>
+              </div>
+              <button id="btn-checkout" class="btn btn-success btn-large" disabled>
+                <i class="fas fa-check-circle"></i> Finalizar Venda (F2)
+              </button>
+              <button id="btn-clear-cart" class="btn btn-ghost btn-small text-danger mt-2" disabled>
+                Cancelar Venda (F4)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Checkout Modal -->
+        <div id="checkout-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+              <h3 style="width: 100%; text-align: center;">Confirmar Pagamento</h3>
+            </div>
+            <div style="padding: 1rem 0;">
+              <p class="text-muted" style="margin-bottom: 0.5rem">Total a Pagar</p>
+              <h1 id="checkout-modal-total" class="text-success" style="font-size: 2.5rem; margin-bottom: 2rem;">R$ 0,00</h1>
+
+              <p style="margin-bottom: 1rem;">Selecione a forma de pagamento:</p>
+              <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column;">
+                <button class="btn btn-primary btn-large btn-payment" data-method="DINHEIRO"><i class="fas fa-money-bill-wave"></i> DINHEIRO [1]</button>
+                <button class="btn btn-success btn-large btn-payment" data-method="PIX"><i class="fab fa-pix"></i> PIX [2]</button>
+                <button class="btn btn-info btn-large btn-payment" data-method="CARTÃO"><i class="fas fa-credit-card"></i> CARTÃO [3]</button>
+                <button class="btn btn-warning btn-large btn-payment" data-method="ENCOMENDA"><i class="fas fa-truck-loading"></i> ENCOMENDA [4]</button>
+              </div>
+            </div>
+            <div class="modal-footer" style="justify-content: center; margin-top: 1rem;">
+              <button type="button" class="btn btn-ghost close-checkout">Cancelar Formulário [ESC]</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cash Payment Modal -->
+        <div id="cash-payment-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+              <h3 style="width: 100%; text-align: center;">Pagamento em Dinheiro</h3>
+            </div>
+            <div style="padding: 1rem 0;">
+              <p class="text-muted" style="margin-bottom: 0.5rem">Total da Compra</p>
+              <h1 id="cash-modal-total" class="text-accent" style="font-size: 2.5rem; margin-bottom: 1.5rem;">R$ 0,00</h1>
+
+              <div class="input-group" style="text-align: left;">
+                <label>Valor Recebido do Cliente (R$)</label>
+                <input type="number" step="0.01" id="cash-amount-received" placeholder="0.00" style="font-size: 1.5rem; padding: 1rem; border-radius: 8px;">
+              </div>
+
+              <div id="cash-change-container" style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: rgba(32, 201, 151, 0.1); border: 1px solid rgba(32, 201, 151, 0.3); border-radius: 8px;">
+                <p class="text-muted" style="margin-bottom: 0.2rem">Troco a Devolver</p>
+                <h1 id="cash-change-value" class="text-success" style="font-size: 2.5rem; margin: 0;">R$ 0,00</h1>
+              </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between; margin-top: 1rem;">
+              <button type="button" class="btn btn-ghost close-cash-modal">Voltar</button>
+              <button type="button" id="btn-confirm-cash" class="btn btn-primary" disabled><i class="fas fa-check"></i> Confirmar Venda</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== Sales Report Screen ====== -->
+      <section id="screen-reports" class="screen">
+        <header class="topbar glass-bar" style="flex-wrap: wrap; gap: 1rem;">
+          <div class="topbar-title">
+            <h2>Relatório de Vendas</h2>
+            <p>Acompanhamento de receita e transações</p>
+          </div>
+          <div class="report-filters glass-element" style="display: flex; gap: 1rem; padding: 0.5rem 1rem; align-items: center; flex-wrap: wrap;">
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Buscar Cliente</label>
+              <input type="text" id="filter-report-client" placeholder="Nome do cliente" style="padding: 0.4rem 0.8rem; min-width: 150px;" autocomplete="off">
+            </div>
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Data Inicial</label>
+              <input type="date" id="filter-date-start" style="padding: 0.4rem 0.8rem;">
+            </div>
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Data Final</label>
+              <input type="date" id="filter-date-end" style="padding: 0.4rem 0.8rem;">
+            </div>
+            <button id="btn-filter-reports" class="btn btn-primary btn-small mt-2" style="margin-top: 1.2rem;"><i class="fas fa-filter"></i> Filtrar</button>
+          </div>
+        </header>
+
+        <div class="content-container">
+          <!-- KPI Cards -->
+          <div class="kpi-grid">
+            <div class="kpi-card glass-card gradient-primary">
+              <div class="kpi-icon"><i class="fas fa-shopping-bag"></i></div>
+              <div class="kpi-data">
+                <span class="label">Vendas Realizadas</span>
+                <h3 id="kpi-total-sales">0</h3>
+              </div>
+            </div>
+            <div class="kpi-card glass-card gradient-success">
+              <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
+              <div class="kpi-data">
+                <span class="label">Receita Bruta</span>
+                <h3 id="kpi-total-revenue">R$ 0,00</h3>
+              </div>
+            </div>
+            <div class="kpi-card glass-card gradient-info">
+              <div class="kpi-icon"><i class="fas fa-receipt"></i></div>
+              <div class="kpi-data">
+                <span class="label">Ticket Médio</span>
+                <h3 id="kpi-avg-ticket">R$ 0,00</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sales History Table -->
+          <div class="glass-table-container mt-4">
+            <h3 class="section-title">Histórico de Transações</h3>
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Cód. Transação</th>
+                  <th>Data / Hora</th>
+                  <th>Cliente</th>
+                  <th>Pagamento</th>
+                  <th>Total (R$)</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="sales-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-sales-msg" class="empty-state">
+              <i class="fas fa-search"></i>
+              <p>Nenhuma venda encontrada no período.</p>
+            </div>
+            
+            <!-- Pagination -->
+            <div id="reports-pagination" class="pagination-container mt-4">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== Inventory Management Screen ====== -->
+      <section id="screen-stock" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Movimentações de Estoque</h2>
+            <p>Controle de entradas e saídas</p>
+          </div>
+          <button class="btn btn-primary" id="btn-new-movement">
+            <i class="fas fa-exchange-alt"></i> Registrar Movimentação
+          </button>
+        </header>
+
+        <div class="content-container">
+          <div class="glass-table-container">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Data / Hora</th>
+                  <th>Produto</th>
+                  <th>Tipo</th>
+                  <th>Quantidade</th>
+                  <th>Motivo</th>
+                </tr>
+              </thead>
+              <tbody id="stock-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-stock-msg" class="empty-state hidden">
+              <i class="fas fa-clipboard-list"></i>
+              <p>Nenhuma movimentação registrada.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Movement Modal -->
+        <div id="movement-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal">
+            <div class="modal-header">
+              <h3>Registrar Movimentação</h3>
+              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="movement-form">
+              <div class="form-grid">
+                <div class="input-group" style="grid-column: 1 / -1;">
+                  <label>Produto</label>
+                  <select id="mov-product" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2); color: white;"></select>
+                </div>
+                <div class="input-group">
+                  <label>Tipo de Movimentação</label>
+                  <select id="mov-type" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2); color: white;">
+                    <option value="ENTRADA">ENTRADA (+)</option>
+                    <option value="SAÍDA">SAÍDA (-)</option>
+                  </select>
+                </div>
+                <div class="input-group">
+                  <label>Quantidade</label>
+                  <input type="number" id="mov-qty" required placeholder="0" min="0.001" step="any">
+                </div>
+                <div class="input-group" style="grid-column: 1 / -1;">
+                  <label>Motivo / Justificativa</label>
+                  <input type="text" id="mov-reason" required placeholder="Ex: Compra de fornecedor, Descarte...">
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-ghost close-modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== Encomendas Screen ====== -->
+      <section id="screen-encomendas" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Gestão de Encomendas</h2>
+            <p>Pedidos pendentes de entrega e pagamento</p>
+          </div>
+          <div class="search-wrapper glass-element" style="min-width: 280px; padding: 0.5rem 1rem;">
+            <i class="fas fa-search text-muted"></i>
+            <input type="text" id="search-orders-client" placeholder="Buscar cliente..." autocomplete="off">
+          </div>
+        </header>
+
+        <div class="content-container">
+          <!-- KPI Cards for Orders -->
+          <div class="kpi-grid">
+            <div class="kpi-card glass-card gradient-primary">
+              <div class="kpi-icon"><i class="fas fa-clock"></i></div>
+              <div class="kpi-data">
+                <span class="label">Encomendas Pendentes</span>
+                <h3 id="kpi-orders-count">0</h3>
+              </div>
+            </div>
+            <div class="kpi-card glass-card gradient-warning">
+              <div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div>
+              <div class="kpi-data">
+                <span class="label">Total a Receber</span>
+                <h3 id="kpi-orders-total">R$ 0,00</h3>
+              </div>
+            </div>
+            <div class="kpi-card glass-card gradient-info" style="min-width: 300px;">
+              <div class="kpi-icon"><i class="fas fa-star"></i></div>
+              <div class="kpi-data">
+                <span class="label">Itens Mais Encomendados</span>
+                <p id="kpi-top-ordered-items" style="font-size: 0.85rem; margin-top: 5px; line-height: 1.2;">Nenhum item</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card mt-4" style="padding: 1.5rem;">
+             <h3 class="section-title">Maiores Devedores</h3>
+             <div id="top-debtors-list" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <!-- Populated by JS -->
+                <p class="text-muted">Nenhum devedor registrado.</p>
+             </div>
+          </div>
+
+          <!-- Pending Orders Table -->
+          <div class="glass-table-container mt-4">
+            <h3 class="section-title text-warning"><i class="fas fa-clock"></i> Encomendas Pendentes de Entrega</h3>
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Cód.</th>
+                  <th>Data Pedido</th>
+                  <th>Cliente</th>
+                  <th>Total (R$)</th>
+                  <th>Itens</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-orders-msg" class="empty-state">
+              <i class="fas fa-truck-loading"></i>
+              <p>Nenhuma encomenda pendente de entrega.</p>
+            </div>
+          </div>
+
+          <!-- Delivered Orders Table -->
+          <div class="glass-table-container mt-4">
+            <h3 class="section-title text-success"><i class="fas fa-check-circle"></i> Encomendas Já Entregues (Pendentes de Pagamento)</h3>
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Cód.</th>
+                  <th>Data Pedido</th>
+                  <th>Cliente</th>
+                  <th>Total (R$)</th>
+                  <th>Itens</th>
+                  <th class="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="delivered-orders-table-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+            <div id="empty-delivered-orders-msg" class="empty-state">
+              <i class="fas fa-box-open"></i>
+              <p>Nenhuma encomenda entregue pendente de pagamento.</p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== Settings Screen ====== -->
+      <section id="screen-settings" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Configurações do Sistema</h2>
+            <p>Gerencie preferências e integrações</p>
+          </div>
+        </header>
+
+        <div class="content-container">
+          <div class="kpi-grid">
+            <div class="glass-card" style="padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s;" onclick="connectScale()">
+              <div style="font-size: 3rem; color: var(--info-color); margin-bottom: 1rem;"><i class="fab fa-usb"></i></div>
+              <h3>Balança de Checkout</h3>
+              <p class="text-muted">Conectar balança Ramuza USB/Serial via Web Serial API</p>
+            </div>
+            <div class="glass-card" style="padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s;" onclick="openScaleConfigModal()">
+              <div style="font-size: 3rem; color: var(--primary); margin-bottom: 1rem;"><i class="fas fa-barcode"></i></div>
+              <h3>Balança de Etiqueta</h3>
+              <p class="text-muted">Configurar formato do código de barras da balança do seu açougue/padaria</p>
+            </div>
+            <div class="glass-card" style="padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s;" onclick="openReceiptConfigModal()">
+              <div style="font-size: 3rem; color: var(--success-color); margin-bottom: 1rem;"><i class="fas fa-store"></i></div>
+              <h3>Nome da Mercearia</h3>
+              <p class="text-muted">Personalize as mensagens e o título do seu recibo</p>
+            </div>
+            <div class="glass-card" style="padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s;" onclick="openImporterModal()">
+              <div style="font-size: 3rem; color: var(--accent); margin-bottom: 1rem;"><i class="fas fa-file-excel"></i></div>
+              <h3>Importar Produtos</h3>
+              <p class="text-muted">Cadastre produtos em massa via planilha (Excel/CSV)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scale Config Modal -->
+        <div id="scale-config-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal">
+            <div class="modal-header">
+              <h3>Configuração de Balança</h3>
+              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="scale-config-form">
+              <div class="form-grid">
+                <div class="input-group">
+                  <label>Dígitos do Prefixo (Ex: 2)</label>
+                  <input type="number" id="scale-prefix-len" required min="1" max="2">
+                </div>
+                <div class="input-group">
+                  <label>Dígitos do Código (PLU)</label>
+                  <input type="number" id="scale-plu-len" required min="3" max="6">
+                </div>
+                <div class="input-group">
+                  <label>Dígitos do Valor</label>
+                  <input type="number" id="scale-val-len" required min="4" max="6">
+                </div>
+                <div class="input-group">
+                  <label>Tipo do Valor Embutido</label>
+                  <select id="scale-val-type" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2); color: white;">
+                    <option value="price">Preço Total (R$ V,VV)</option>
+                    <option value="weight">Peso Bruto (0,VVV Kg)</option>
+                  </select>
+                </div>
+                <div class="input-group" style="grid-column: 1 / -1;">
+                   <p class="text-muted" style="font-size: 0.85rem;">
+                      <strong>Como funciona:</strong> Ao bater o código lido, o PDV descartará opções que não batam com o layout da sua balança, e converterá os últimos <span id="scale-format-preview" class="text-accent">X</span> dígitos calculando automaticamente a quantidade cobrada.
+                   </p>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-ghost close-modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar Layout</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Receipt Config Modal -->
+        <div id="receipt-config-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal">
+            <div class="modal-header">
+              <h3>Configuração da Mercearia</h3>
+              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="receipt-config-form">
+              <div class="form-grid">
+                <div class="input-group" style="grid-column: 1 / -1;">
+                  <label>Nome do Estabelecimento</label>
+                  <input type="text" id="receipt-store-name" required placeholder="Ex: Mercearia do João">
+                </div>
+                <div class="input-group" style="grid-column: 1 / -1;">
+                  <label>Mensagem de Rodapé</label>
+                  <p class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.5rem;">A tag {cliente} será substituída pelo nome do cliente caso houver.</p>
+                  <input type="text" id="receipt-footer-msg" required placeholder="Ex: Obrigado {cliente}, volte sempre!">
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-ghost close-modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Globally accessible modals -->
+      <!-- Sale Details Modal -->
+      <div id="sale-details-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 600px;">
+          <div class="modal-header">
+            <h3>Detalhes da Venda <span id="detail-sale-id" class="text-accent"></span> <span id="detail-sale-badges" style="margin-left: 0.5rem; font-size: 0.8rem; vertical-align: middle;"></span></h3>
+            <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="sale-info" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 0.9rem;">
+            <span>
+              <i class="far fa-clock"></i> <span id="detail-sale-date"></span><br><br>
+              <strong>Cliente:</strong> <span id="detail-sale-customer"></span><br>
+              <strong>Pgto:</strong> <span id="detail-sale-payment"></span>
+              <span id="detail-sale-cash-info" style="display: none;"><br><strong>Recebido:</strong> <span id="detail-sale-received"></span> | <strong>Troco:</strong> <span id="detail-sale-change"></span></span>
+            </span>
+            <span style="text-align: right;"><strong>Total:</strong><br><span id="detail-sale-total" class="text-success" style="font-size: 1.5rem; font-weight: bold;"></span></span>
+          </div>
+          <div class="glass-table-container">
+            <table class="premium-table" style="font-size: 0.9rem;">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Preço Un.</th>
+                  <th>Qtd.</th>
+                  <th class="text-right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody id="sale-items-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-footer" style="justify-content: space-between;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button type="button" id="btn-cancel-sale" class="btn btn-danger" style="background: var(--danger-color); display: none;"><i class="fas fa-trash-alt"></i> Cancelar Venda</button>
+              <button type="button" id="btn-deliver-partial" class="btn btn-warning" style="display: none; color: #fff;"><i class="fas fa-box-open"></i> Entregar Parcial</button>
+              <button type="button" id="btn-deliver-order" class="btn btn-primary" style="display: none;"><i class="fas fa-truck"></i> Entregar (Tudo)</button>
+              <button type="button" id="btn-pay-order" class="btn btn-success" style="display: none;"><i class="fas fa-check"></i> Quitar Débito</button>
+            </div>
+            <button type="button" class="btn btn-primary close-modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partial Delivery Modal -->
+      <div id="partial-delivery-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 600px;">
+          <div class="modal-header">
+            <h3>Entregar Parcial <span id="partial-delivery-order-id" class="text-accent"></span></h3>
+            <button class="btn-icon close-partial-delivery"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="glass-table-container mt-2">
+            <table class="premium-table" style="font-size: 0.9rem;">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th class="text-center">Falta Entregar</th>
+                  <th width="150px">Entregar Agora</th>
+                </tr>
+              </thead>
+              <tbody id="partial-delivery-items-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-footer" style="justify-content: flex-end;">
+            <button type="button" class="btn btn-ghost close-partial-delivery">Cancelar</button>
+            <button type="button" id="btn-confirm-partial-delivery" class="btn btn-primary"><i class="fas fa-check"></i> Confirmar Entrega</button>
+          </div>
+        </div>
+      </div>
+      <!-- Payment Modal -->
+      <div id="payment-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+          <div class="modal-header" style="justify-content: center;">
+            <h3 style="width: 100%; text-align: center;">Receber Pagamento</h3>
+          </div>
+          <div style="padding: 1rem 0;">
+            <p class="text-muted" style="margin-bottom: 0.5rem">Falta Receber</p>
+            <h1 id="payment-modal-remaining" class="text-success" style="font-size: 2.5rem; margin-bottom: 1rem;">R$ 0,00</h1>
+
+            <div class="input-group" style="text-align: left; margin-bottom: 1.5rem;">
+              <label>Valor a Abater (R$)</label>
+              <input type="number" step="0.01" id="payment-amount" placeholder="0.00" style="font-size: 1.5rem; padding: 1rem; border-radius: 8px;">
+            </div>
+
+            <p style="margin-bottom: 1rem;">Confirmar recebimento em:</p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column;">
+              <button class="btn btn-primary btn-large btn-payment-action" data-method="DINHEIRO"><i class="fas fa-money-bill-wave"></i> DINHEIRO</button>
+              <button class="btn btn-success btn-large btn-payment-action" data-method="PIX"><i class="fab fa-pix"></i> PIX</button>
+              <button class="btn btn-info btn-large btn-payment-action" data-method="CARTÃO"><i class="fas fa-credit-card"></i> CARTÃO</button>
+            </div>
+          </div>
+          <div class="modal-footer" style="justify-content: center; margin-top: 1rem;">
+            <button type="button" class="btn btn-ghost close-payment">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <!-- Print Confirm Modal -->
+      <div id="print-confirm-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 450px; text-align: center;">
+          <div class="modal-header" style="justify-content: center;">
+            <h3 style="width: 100%; text-align: center;">Venda Finalizada!</h3>
+          </div>
+          <div style="padding: 1rem 0;">
+            <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 1.2rem;">Deseja imprimir o cupom desta venda?</p>
+
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column;">
+              <button id="btn-print-yes" class="btn btn-primary btn-large"><i class="fas fa-print"></i> SIM, Imprimir (1)</button>
+              <button id="btn-print-no" class="btn btn-ghost btn-large"><i class="fas fa-times"></i> NÃO, Apenas Finalizar (0)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Weight Capture Modal -->
+      <div id="weight-capture-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 400px; text-align: center;">
+          <div class="modal-header" style="justify-content: center; border-bottom: none;">
+            <h3 style="width: 100%; text-align: center; color: var(--accent-color);">Produto Pesável</h3>
+          </div>
+          <div style="padding: 1rem 0;">
+            <h4 id="weight-product-name" style="margin-bottom: 1rem;">Nome do Produto</h4>
+            
+            <div id="weight-reader-active" style="display: none;">
+              <p class="text-muted" style="margin-bottom: 0.5rem">Peso Atual na Balança</p>
+              <h1 id="weight-live-value" class="text-success" style="font-size: 3rem; margin-bottom: 0; font-family: monospace;">0,000 kg</h1>
+              <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;"><i class="fas fa-circle-notch fa-spin"></i> Lendo porta serial...</p>
+            </div>
+
+            <div id="weight-reader-manual" style="display: none; text-align: left;">
+              <div class="input-group">
+                <label>Digite o peso (kg)</label>
+                <input type="number" step="0.001" min="0" id="weight-manual-input" placeholder="Ex: 1.250" style="font-size: 1.5rem; padding: 1rem; text-align: center; font-family: monospace;">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer" style="justify-content: space-between; margin-top: 1rem;">
+            <button type="button" class="btn btn-ghost" onclick="cancelWeightCapture()">Cancelar</button>
+            <button type="button" id="btn-confirm-weight" class="btn btn-primary"><i class="fas fa-check"></i> Confirmar (Enter)</button>
+          </div>
+        </div>
+      </div>
+      <!-- ====== Labels Generator Screen ====== -->
+      <section id="screen-labels" class="screen">
+        <header class="topbar glass-bar">
+          <div class="topbar-title">
+            <h2>Gerador de Etiquetas</h2>
+            <p>Pese produtos e imprima códigos de barras</p>
+          </div>
+        </header>
+
+        <div class="content-container">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <!-- Painel Esquerdo: Seleção e Peso -->
+            <div class="glass-card" style="padding: 2rem;">
+              <h3 style="margin-bottom: 1rem; color: var(--accent-color);">1. Selecione o Produto</h3>
+              <div class="input-group" style="position: relative;">
+                <div class="input-icon">
+                  <i class="fas fa-search"></i>
+                  <input type="text" id="label-product-search" placeholder="Buscar produto pesável..." autocomplete="off">
+                </div>
+                <ul id="label-product-results" class="search-results hidden" style="position: absolute; width: 100%; top: 100%; z-index: 100;"></ul>
+              </div>
+              
+              <div id="label-selected-product" style="margin-top: 1.5rem; padding: 1rem; background: rgba(var(--primary-color-rgb), 0.1); border-radius: 8px; border: 1px solid var(--primary-color); display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h4 id="label-prod-name" style="margin: 0 0 0.5rem 0;">Produto</h4>
+                        <p class="text-muted" style="margin: 0; font-size: 0.9rem;">Preço: <span id="label-prod-price">R$ 0,00</span>/kg</p>
+                    </div>
+                    <button class="btn-icon text-danger" onclick="clearLabelProduct()"><i class="fas fa-times"></i></button>
+                </div>
+                <input type="hidden" id="label-prod-plu">
+                <input type="hidden" id="label-prod-price-val">
+              </div>
+
+              <h3 style="margin-top: 2rem; margin-bottom: 1rem; color: var(--accent-color);">2. Peso</h3>
+              <div id="label-weight-active" style="display: none; text-align: center; padding: 2rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <p class="text-muted" style="margin-bottom: 0.5rem">Peso Atual na Balança</p>
+                <h1 id="label-live-value" class="text-success" style="font-size: 3.5rem; margin: 0; font-family: monospace;">0,000 kg</h1>
+                <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;"><i class="fas fa-circle-notch fa-spin"></i> Lendo porta serial...</p>
+              </div>
+
+              <div id="label-weight-manual" style="margin-top: 1rem;">
+                <div class="input-group">
+                  <label>Digite o peso (kg)</label>
+                  <input type="number" step="0.001" min="0" id="label-manual-input" placeholder="Ex: 1.250" style="font-size: 1.5rem; padding: 1rem; text-align: center; font-family: monospace;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Painel Direito: Preview e Impressão -->
+            <div class="glass-card" style="padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <h3 style="margin-bottom: 1.5rem; width: 100%; text-align: left; color: var(--accent-color);">3. Visualização da Etiqueta</h3>
+              
+              <!-- Printable Label Container -->
+              <div id="label-print-area" class="label-preview">
+                <div class="label-header">
+                  <span id="lbl-store-name">MERCEARIA</span>
+                </div>
+                <div class="label-prod-name" id="lbl-prod-name">Nenhum produto selecionado</div>
+                <div class="label-details">
+                  <div class="label-col">
+                    <small>Peso/Qtd</small>
+                    <strong id="lbl-weight">0,000 kg</strong>
+                  </div>
+                  <div class="label-col">
+                    <small>Preço/kg</small>
+                    <strong id="lbl-price-kg">R$ 0,00</strong>
+                  </div>
+                  <div class="label-col label-total">
+                    <small>Total a Pagar</small>
+                    <strong id="lbl-total">R$ 0,00</strong>
+                  </div>
+                </div>
+                <div class="label-barcode-container">
+                  <svg id="lbl-barcode"></svg>
+                  <div id="lbl-barcode-text" style="font-family: monospace; font-size: 12px; margin-top: 2px;"></div>
+                </div>
+                <div class="label-footer">
+                  <small>Data: <span id="lbl-date">--/--/----</span></small>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 1rem; align-items: flex-end; margin-top: 2rem; width: 100%; max-width: 380px;">
+                  <div class="input-group" style="flex: 1;">
+                      <label style="font-size: 0.85rem; margin-bottom: 0.2rem;">Qtd</label>
+                      <input type="number" id="label-add-copies" value="1" min="1" max="50" style="text-align: center; font-size: 1.2rem; padding: 0.6rem;">
+                  </div>
+                  <button id="btn-add-label-queue" class="btn btn-secondary btn-large" style="flex: 2;" disabled>
+                    <i class="fas fa-plus"></i> Adicionar à Fila
+                  </button>
+              </div>
+
+              <!-- Fila de Impressão -->
+              <div style="margin-top: 2rem; width: 100%; max-width: 380px; border-top: 1px solid var(--border-glass); padding-top: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h4 style="margin: 0;">Fila de Impressão (<span id="label-queue-count">0</span>)</h4>
+                    <button id="btn-clear-label-queue" class="btn-icon text-danger" title="Limpar Fila"><i class="fas fa-trash"></i></button>
+                </div>
+                <ul id="label-queue-list" style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.1); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column;">
+                    <li style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">Fila vazia</li>
+                </ul>
+                <button id="btn-print-queue" class="btn btn-primary btn-large" style="width: 100%; margin-top: 1rem;" disabled>
+                    <i class="fas fa-print"></i> Imprimir Folha
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Mobile Navigation Bar (Visible only on small screens via CSS) -->
+    <nav id="mobile-nav" class="glass-bar">
+      <ul class="mobile-nav-links">
+        <li><a href="#" data-route="pos" class="active"><i class="fas fa-cash-register"></i><span>PDV</span></a></li>
+        <li><a href="#" data-route="products"><i class="fas fa-box-open"></i><span>Produtos</span></a></li>
+        <li><a href="#" data-route="stock"><i class="fas fa-boxes"></i><span>Estoque</span></a></li>
+        <li><a href="#" data-route="encomendas"><i class="fas fa-truck-loading"></i><span>Encomendas</span></a></li>
+        <li><a href="#" data-route="reports"><i class="fas fa-chart-pie"></i><span>Relatórios</span></a></li>
+        <li><a href="#" data-route="labels"><i class="fas fa-tags"></i><span>Etiquetas</span></a></li>
+      </ul>
+    </nav>
+  </div>
+
+
+  <!-- Floating Toast Notification System -->
+  <div id="toast-container"></div>
+  
+  <div id="print-receipt" style="display: none;"></div>
+      <div id="importer-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal">
+          <div class="modal-header">
+            <h3>Importação: <span id="import-progress" class="text-primary">0/0</span></h3>
+            <button class="btn-icon close-modal" onclick="document.getElementById('importer-modal').classList.remove('active')"><i class="fas fa-times"></i></button>
+          </div>
+          
+          <!-- State 1: File Upload -->
+          <div id="import-upload-state">
+            <p class="text-muted" style="margin-bottom:1rem; text-align:center;">
+              A planilha deve ter as seguintes colunas em ordem:<br>
+              <small><b>1: Cód Barras | 2: Quantidade | 3: Nome | 4: Custo | 5: Preço de Venda | 6: Cód Referência (Opcional) | 7: Pesável (0/1) | 8: Controlar Estoque (0/1)</b></small>
+            </p>
+            <div style="display:flex; justify-content:center; align-items:center; padding: 2rem; border: 2px dashed rgba(255,255,255,0.2); border-radius:12px; margin-bottom:1rem;">
+              <input type="file" id="import-file" accept=".xlsx, .xls, .csv" style="display:none;" onchange="handleImportFile(event)">
+              <button class="btn btn-primary" onclick="document.getElementById('import-file').click()">
+                <i class="fas fa-upload"></i> Escolher Planilha
+              </button>
+            </div>
+          </div>
+
+          <!-- State 2: Review Item -->
+          <div id="import-review-state" style="display:none;">
+            <form id="import-review-form" onsubmit="event.preventDefault(); saveCurrentImportItem();">
+              <div class="form-grid">
+                <div class="input-group">
+                  <label>Cód. Barras (PLU) *</label>
+                  <input type="text" id="import-plu" required>
+                </div>
+                <div class="input-group">
+                  <label>Cód. Referência (Opcional)</label>
+                  <input type="text" id="import-referencia">
+                </div>
+                <div class="input-group" style="grid-column: span 2;">
+                  <label>Nome do Produto *</label>
+                  <input type="text" id="import-nome" required>
+                </div>
+                <div class="input-group">
+                  <label>Estoque Atual *</label>
+                  <input type="number" step="0.001" id="import-estoque" required>
+                </div>
+                <div class="input-group" style="grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div>
+                    <label>Preço de Custo (R$)</label>
+                    <input type="text" id="import-custo" class="money-mask">
+                  </div>
+                  <div>
+                    <label>Preço de Venda (R$) *</label>
+                    <input type="text" id="import-preco" class="money-mask" required>
+                  </div>
+                </div>
+                <div class="input-group" style="grid-column: span 2;">
+                  <label style="color:var(--warning-color);"><i class="fas fa-cog"></i> Configurações:</label>
+                  <div style="display:flex; gap:1.5rem; margin-top:0.5rem;">
+                    <label class="toggle-label">
+                      <input type="checkbox" id="import-controlar-estoque">
+                      Controlar Estoque?
+                    </label>
+                    <label class="toggle-label">
+                      <input type="checkbox" id="import-pesavel">
+                      Produto Pesável?
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer" style="display:flex; justify-content:space-between;">
+                <button type="button" class="btn btn-secondary" style="background: #ef4444; color: white; border: none;" onclick="skipCurrentImportItem()">
+                  <i class="fas fa-forward"></i> Pular Produto
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  <i class="fas fa-save"></i> Salvar e Próximo
+                </button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+    </div> <!-- fechar app-container -->
+
+  <!-- Scripts -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Bloqueio Anti-Curiosos
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'F12' || 
+         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) || 
+         (e.ctrlKey && e.key === 'u')) {
+        e.preventDefault();
+      }
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW (Dashboard) registrado com sucesso!'))
+          .catch(err => console.log('Falha ao registrar SW (Dashboard):', err));
+      });
+    }
+  </script>
+</body>
+
+</html>
