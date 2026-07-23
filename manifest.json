@@ -1,0 +1,22 @@
+{
+  "name": "Sistema de PDV - Mercearia",
+  "short_name": "Mercearia",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "description": "Sistema de PDV moderno para Mercearias e Comércio em geral.",
+  "icons": [
+    {
+      "src": "./img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
+}
