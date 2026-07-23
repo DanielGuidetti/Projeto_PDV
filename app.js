@@ -397,7 +397,9 @@ window.deleteProduct = async (id) => {
             if (error) throw error;
 
             state.products = state.products.filter(p => String(p.id) !== String(id));
+            state.movimentacoes = state.movimentacoes.filter(m => String(m.produto_id) !== String(id));
             renderProductsTable();
+            if (typeof renderStockHistory === 'function') renderStockHistory();
             showToast('Produto removido do banco.', 'info');
         } catch(err) {
             showToast('Erro ao remover produto do banco.', 'error');
@@ -913,9 +915,65 @@ document.getElementById('pos-search').addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === '/' && document.getElementById('screen-pos').classList.contains('active')) {
+    // Only apply global shortcuts if we are on the POS screen
+    if (!document.getElementById('screen-pos').classList.contains('active')) return;
+
+    // --- 1. MODAL HOTKEYS ---
+    const printModal = document.getElementById('print-confirm-modal');
+    if (printModal && printModal.classList.contains('active')) {
+        if (e.key === '1' || e.key === 'Enter') { e.preventDefault(); handlePrintDecision(true); return; }
+        if (e.key === '0' || e.key === 'Escape') { e.preventDefault(); handlePrintDecision(false); return; }
+        return;
+    }
+
+    const cashModal = document.getElementById('cash-payment-modal');
+    if (cashModal && cashModal.classList.contains('active')) {
+        if (e.key === 'Escape') { e.preventDefault(); document.querySelector('.close-cash-modal').click(); return; }
+        // Enter is handled natively by the input, no need to intercept unless we want to
+        return;
+    }
+
+    const checkoutModal = document.getElementById('checkout-modal');
+    if (checkoutModal && checkoutModal.classList.contains('active')) {
+        if (e.key === 'Escape') { e.preventDefault(); document.querySelector('.close-checkout').click(); return; }
+        if (e.key === '1') { e.preventDefault(); document.querySelector('.btn-payment[data-method="DINHEIRO"]').click(); return; }
+        if (e.key === '2') { e.preventDefault(); document.querySelector('.btn-payment[data-method="PIX"]').click(); return; }
+        if (e.key === '3') { e.preventDefault(); document.querySelector('.btn-payment[data-method="CARTÃO"]').click(); return; }
+        if (e.key === '4') { e.preventDefault(); document.querySelector('.btn-payment[data-method="ENCOMENDA"]').click(); return; }
+        return;
+    }
+
+    const weightModal = document.getElementById('weight-capture-modal');
+    if (weightModal && weightModal.classList.contains('active')) {
+        if (e.key === 'Escape') { e.preventDefault(); document.querySelector('.close-weight-modal')?.click(); return; }
+        return;
+    }
+
+    // Se algum modal estiver aberto (mesmo um que não checamos), não fazer nada com atalhos gerais
+    if (document.querySelector('.modal.active')) return;
+
+    // --- 2. GLOBAL POS HOTKEYS ---
+    if (e.key === 'F2') {
+        e.preventDefault();
+        document.getElementById('btn-checkout').click();
+        return;
+    }
+
+    if (e.key === '/') {
         e.preventDefault();
         document.getElementById('pos-search').focus();
+        return;
+    }
+
+    // --- 3. AUTO-FOCUS ON BARCODE SEARCH ---
+    // If user presses any character (e.g., from a barcode scanner or keyboard) and no input is active, focus the search bar
+    const isModifier = e.ctrlKey || e.altKey || e.metaKey;
+    const isSingleChar = e.key.length === 1;
+    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
+    if (!isModifier && isSingleChar && !isInputActive) {
+        document.getElementById('pos-search').focus();
+        // The browser will automatically type the pressed character into the newly focused input
     }
 });
 
@@ -1332,12 +1390,7 @@ const printReceipt = (sale) => {
 };
 
 // Shortcut checkout
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'F2' && document.getElementById('screen-pos').classList.contains('active')) {
-        e.preventDefault();
-        document.getElementById('btn-checkout').click();
-    }
-});
+// Shortcut checkout (moved to global listener)
 
 document.getElementById('btn-clear-cart').addEventListener('click', () => {
     if (confirm('Cancelar todos os itens da cesta?')) {
@@ -2509,22 +2562,20 @@ const handlePrintDecision = (print) => {
         printReceipt(state.pendingSaleForPrint);
     }
     state.pendingSaleForPrint = null;
+
+    // Focar e limpar a barra de pesquisa de código de barras
+    const searchInput = document.getElementById('pos-search');
+    if (searchInput) {
+        searchInput.value = '';
+        if (typeof renderPosCatalog === 'function') renderPosCatalog('');
+        searchInput.focus();
+    }
 };
 
 if (btnPrintYes) btnPrintYes.addEventListener('click', () => handlePrintDecision(true));
 if (btnPrintNo) btnPrintNo.addEventListener('click', () => handlePrintDecision(false));
 
-document.addEventListener('keydown', (e) => {
-    if (printConfirmModal && printConfirmModal.classList.contains('active')) {
-        if (e.key === '1') {
-            e.preventDefault();
-            handlePrintDecision(true);
-        } else if (e.key === '0') {
-            e.preventDefault();
-            handlePrintDecision(false);
-        }
-    }
-});
+// Print confirm shortcuts moved to global listener
 
 /* ===== App Initialization ===== */
 // Start App
@@ -2825,7 +2876,7 @@ document.getElementById('excel-file-input').addEventListener('change', (e) => {
             const rows = json.slice(1);
             
             const productsToImport = rows.map(row => {
-                const isSim = (val) => val && (val.toString().toLowerCase().trim() === 'sim' || val.toString().trim() === '1');
+                const isSim = (val) => !!(val && (val.toString().toLowerCase().trim() === 'sim' || val.toString().trim() === '1'));
                 
                 return {
                     plu: row[0] ? row[0].toString().trim() : '',

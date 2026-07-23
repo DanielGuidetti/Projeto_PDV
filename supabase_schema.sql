@@ -55,9 +55,9 @@ END $$;
 ALTER TABLE public.produtos DROP CONSTRAINT IF EXISTS produtos_PLU_key;
 DO $$ BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'produtos_PLU_user_id_key'
+        SELECT 1 FROM pg_constraint WHERE conname = 'produtos_plu_user_id_key'
     ) THEN
-        ALTER TABLE public.produtos ADD CONSTRAINT produtos_PLU_user_id_key UNIQUE("PLU", user_id);
+        ALTER TABLE public.produtos ADD CONSTRAINT produtos_plu_user_id_key UNIQUE("PLU", user_id);
     END IF;
 END $$;
 
@@ -193,23 +193,23 @@ ALTER TABLE public.scale_configs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Acesso Global Produtos" ON public.produtos;
 DROP POLICY IF EXISTS "Acesso Restrito Produtos" ON public.produtos;
-CREATE POLICY "Acesso Restrito Produtos" ON public.produtos FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Produtos" ON public.produtos FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Acesso Global Vendas" ON public.vendas;
 DROP POLICY IF EXISTS "Acesso Restrito Vendas" ON public.vendas;
-CREATE POLICY "Acesso Restrito Vendas" ON public.vendas FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Vendas" ON public.vendas FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Acesso Global Movimentacoes" ON public.movimentacoes;
 DROP POLICY IF EXISTS "Acesso Restrito Movimentacoes" ON public.movimentacoes;
-CREATE POLICY "Acesso Restrito Movimentacoes" ON public.movimentacoes FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Movimentacoes" ON public.movimentacoes FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Acesso Global Store Config" ON public.store_configs;
 DROP POLICY IF EXISTS "Acesso Restrito Store Config" ON public.store_configs;
-CREATE POLICY "Acesso Restrito Store Config" ON public.store_configs FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Store Config" ON public.store_configs FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Acesso Global Scale Config" ON public.scale_configs;
 DROP POLICY IF EXISTS "Acesso Restrito Scale Config" ON public.scale_configs;
-CREATE POLICY "Acesso Restrito Scale Config" ON public.scale_configs FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Scale Config" ON public.scale_configs FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 -- 7. Criação da tabela de Movimentações Financeiras (Livro Caixa Externo)
 CREATE TABLE IF NOT EXISTS public.movimentacoes_financeiras (
@@ -236,7 +236,7 @@ END $$;
 ALTER TABLE public.movimentacoes_financeiras ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso Global Movimentacoes Fin" ON public.movimentacoes_financeiras;
 DROP POLICY IF EXISTS "Acesso Restrito Movimentacoes Fin" ON public.movimentacoes_financeiras;
-CREATE POLICY "Acesso Restrito Movimentacoes Fin" ON public.movimentacoes_financeiras FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Movimentacoes Fin" ON public.movimentacoes_financeiras FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 -- 8. Tabela de Receitas (Custos de Produção)
 CREATE TABLE IF NOT EXISTS public.receitas (
@@ -263,4 +263,4 @@ END $$;
 ALTER TABLE public.receitas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso Global Receitas" ON public.receitas;
 DROP POLICY IF EXISTS "Acesso Restrito Receitas" ON public.receitas;
-CREATE POLICY "Acesso Restrito Receitas" ON public.receitas FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Acesso Global Receitas" ON public.receitas FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
