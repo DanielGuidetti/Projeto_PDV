@@ -2649,7 +2649,7 @@ window.selectLabelProduct = (product) => {
     document.getElementById('lbl-store-name').textContent = state.receiptConfig?.storeName || 'LOJA';
     
     const today = new Date();
-    document.getElementById('lbl-date').textContent = formatDate(today.toISOString());
+    document.getElementById('lbl-date').textContent = today.toLocaleDateString('pt-BR');
     
     refreshLabelPreview();
 };
@@ -2662,6 +2662,7 @@ window.clearLabelProduct = () => {
     document.getElementById('lbl-weight').textContent = '0,000 kg';
     document.getElementById('lbl-total').textContent = 'R$ 0,00';
     document.getElementById('btn-add-label-queue').disabled = true;
+    document.getElementById('lbl-val-date').textContent = '--/--/----';
     
     const svg = document.getElementById('lbl-barcode');
     if (svg) svg.innerHTML = '';
@@ -2685,10 +2686,31 @@ window.refreshLabelPreview = () => {
     document.getElementById('lbl-total').textContent = formatMoney(total);
     document.getElementById('btn-add-label-queue').disabled = false;
     
+    const typeSelect = document.getElementById('label-type-select');
+    if (typeSelect && typeSelect.value === 'validade') {
+        const valDateInput = document.getElementById('label-validity-date');
+        if (valDateInput && valDateInput.value) {
+            const [y, m, d] = valDateInput.value.split('-');
+            document.getElementById('lbl-val-date').textContent = `${d}/${m}/${y}`;
+        } else {
+            document.getElementById('lbl-val-date').textContent = '--/--/----';
+        }
+    }
+    
     generateLabelBarcode(selectedLabelProduct, weight, total);
 };
 
 document.getElementById('label-manual-input')?.addEventListener('input', refreshLabelPreview);
+
+document.getElementById('label-type-select')?.addEventListener('change', (e) => {
+    const isVal = e.target.value === 'validade';
+    document.getElementById('label-validity-container').style.display = isVal ? 'block' : 'none';
+    document.getElementById('lbl-val-container').style.display = isVal ? 'inline' : 'none';
+    document.getElementById('lbl-date-label').textContent = isVal ? 'Fab:' : 'Data:';
+    refreshLabelPreview();
+});
+
+document.getElementById('label-validity-date')?.addEventListener('input', refreshLabelPreview);
 
 const generateLabelBarcode = (product, weight, total) => {
     const cfg = state.scaleConfig;
@@ -2729,7 +2751,7 @@ const generateLabelBarcode = (product, weight, total) => {
                 format: "EAN13",
                 displayValue: false,
                 height: 40,
-                width: 1.5,
+                width: 3.5,
                 margin: 0
             });
             document.getElementById('lbl-barcode-text').textContent = barcode13;

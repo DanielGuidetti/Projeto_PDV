@@ -1585,7 +1585,7 @@ input:not(#pos-search):not(#search-orders-client):focus, textarea:focus, select:
     #print-receipt.printing-label-mode .label-preview {
         position: absolute !important;
         margin: 0 !important;
-        padding: 3mm !important;
+        padding: 1.5mm !important;
         width: 70mm !important;
         height: 45mm !important;
         box-sizing: border-box !important;
@@ -1595,6 +1595,7 @@ input:not(#pos-search):not(#search-orders-client):focus, textarea:focus, select:
         background: white !important;
         color: black !important;
         page-break-inside: avoid !important;
+        gap: 2px !important;
         
         /* Rotaciona a etiqueta em si (70x45 -> 45x70) */
         transform-origin: center !important;
@@ -1609,16 +1610,18 @@ input:not(#pos-search):not(#search-orders-client):focus, textarea:focus, select:
     
     /* Ajustes internos para fonte legível e código de barras máximo */
     #print-receipt.printing-label-mode .label-header {
-        font-size: 1rem !important;
-        margin-bottom: 2px !important;
+        font-size: 0.9rem !important;
+        margin-bottom: 0 !important;
+        padding-bottom: 2px !important;
     }
     #print-receipt.printing-label-mode .label-prod-name {
-        font-size: 1.1rem !important;
-        margin-bottom: 2px !important;
+        font-size: 1rem !important;
+        margin-bottom: 0 !important;
     }
     #print-receipt.printing-label-mode .label-details {
-        font-size: 0.85rem !important;
-        margin-bottom: 2px !important;
+        font-size: 0.8rem !important;
+        margin-bottom: 0 !important;
+        padding: 2px 0 !important;
     }
     #print-receipt.printing-label-mode .label-barcode-container {
         margin-top: 0 !important;
@@ -1628,15 +1631,23 @@ input:not(#pos-search):not(#search-orders-client):focus, textarea:focus, select:
     #print-receipt.printing-label-mode .label-barcode-container svg {
         width: 100% !important;
         height: auto !important;
-        max-height: 40px !important;
+        max-height: 38px !important;
     }
     #print-receipt.printing-label-mode #lbl-barcode-text {
-        font-size: 11px !important;
+        font-size: 12px !important;
+        font-weight: bold !important;
         margin-top: 0 !important;
     }
     #print-receipt.printing-label-mode .label-footer {
         font-size: 9px !important;
         margin-top: 1px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+    }
+    #print-receipt.printing-label-mode #lbl-val-container {
+        font-size: 12px !important;
+        font-weight: 900 !important;
     }
     
     @page {
