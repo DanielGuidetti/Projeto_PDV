@@ -537,12 +537,27 @@
 
       <!-- ====== Inventory Management Screen ====== -->
       <section id="screen-stock" class="screen">
-        <header class="topbar glass-bar">
+        <header class="topbar glass-bar" style="flex-wrap: wrap; gap: 1rem;">
           <div class="topbar-title">
             <h2>Movimentações de Estoque</h2>
             <p>Controle de entradas e saídas</p>
           </div>
-          <button class="btn btn-primary" id="btn-new-movement">
+          <div class="report-filters glass-element" style="display: flex; gap: 1rem; padding: 0.5rem 1rem; align-items: center; flex-wrap: wrap;">
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Buscar Produto / Motivo</label>
+              <input type="text" id="filter-stock-search" placeholder="Buscar..." style="padding: 0.4rem 0.8rem; min-width: 150px;" autocomplete="off">
+            </div>
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Data Inicial</label>
+              <input type="date" id="filter-stock-date-start" style="padding: 0.4rem 0.8rem;">
+            </div>
+            <div class="input-group" style="margin-bottom: 0;">
+              <label style="margin-bottom: 0.2rem; display: block; font-size: 0.75rem;">Data Final</label>
+              <input type="date" id="filter-stock-date-end" style="padding: 0.4rem 0.8rem;">
+            </div>
+            <button id="btn-filter-stock" class="btn btn-primary btn-small mt-2" style="margin-top: 1.2rem;"><i class="fas fa-filter"></i> Filtrar</button>
+          </div>
+          <button class="btn btn-primary mt-2" id="btn-new-movement" style="margin-top: 1.2rem !important; align-self: flex-start;">
             <i class="fas fa-exchange-alt"></i> Registrar Movimentação
           </button>
         </header>

@@ -2396,14 +2396,39 @@ const renderStockHistory = () => {
     const emptyMsg = document.getElementById('empty-stock-msg');
     tbody.innerHTML = '';
     
-    if (state.movimentacoes.length === 0) {
+    const searchTerm = (document.getElementById('filter-stock-search')?.value || '').toLowerCase();
+    const dateStart = document.getElementById('filter-stock-date-start')?.value;
+    const dateEnd = document.getElementById('filter-stock-date-end')?.value;
+
+    let filteredMovs = [...state.movimentacoes];
+
+    if (searchTerm) {
+        filteredMovs = filteredMovs.filter(m => {
+            const product = state.products.find(p => String(p.id) === String(m.produto_id));
+            const productName = product ? product.nome.toLowerCase() : '';
+            const reason = (m.motivo || '').toLowerCase();
+            return productName.includes(searchTerm) || reason.includes(searchTerm);
+        });
+    }
+
+    if (dateStart) {
+        const start = new Date(dateStart + 'T00:00:00');
+        filteredMovs = filteredMovs.filter(m => new Date(m.data_movimentacao) >= start);
+    }
+
+    if (dateEnd) {
+        const end = new Date(dateEnd + 'T23:59:59');
+        filteredMovs = filteredMovs.filter(m => new Date(m.data_movimentacao) <= end);
+    }
+    
+    if (filteredMovs.length === 0) {
         emptyMsg.classList.remove('hidden');
         tbody.parentElement.classList.add('hidden');
     } else {
         emptyMsg.classList.add('hidden');
         tbody.parentElement.classList.remove('hidden');
         
-        const sortedMovs = [...state.movimentacoes].sort((a,b) => new Date(b.data_movimentacao) - new Date(a.data_movimentacao));
+        const sortedMovs = filteredMovs.sort((a,b) => new Date(b.data_movimentacao) - new Date(a.data_movimentacao));
         
         sortedMovs.forEach(m => {
             const product = state.products.find(p => String(p.id) === String(m.produto_id));
@@ -2425,6 +2450,11 @@ const renderStockHistory = () => {
         });
     }
 };
+
+document.getElementById('btn-filter-stock')?.addEventListener('click', renderStockHistory);
+document.getElementById('filter-stock-search')?.addEventListener('keyup', (e) => {
+    if(e.key === 'Enter') renderStockHistory();
+});
 
 document.getElementById('btn-new-movement').addEventListener('click', () => {
     const select = document.getElementById('mov-product');
