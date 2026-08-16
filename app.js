@@ -2163,23 +2163,48 @@ const renderReportPagination = (totalPages) => {
 
     let html = `
         <button class="pagination-btn" ${state.currentReportPage === 1 ? 'disabled' : ''} onclick="changeReportPage(${state.currentReportPage - 1})">
-            <i class="fas fa-chevron-left"></i> Prev
+            <i class="fas fa-chevron-left"></i> Anterior
         </button>
         <div class="pagination-numbers">
     `;
 
-    for (let i = 1; i <= totalPages; i++) {
-        html += `
-            <button class="pagination-btn ${i === state.currentReportPage ? 'active' : ''}" onclick="changeReportPage(${i})">
-                ${i}
-            </button>
-        `;
+    let pages = [];
+    if (totalPages <= 5) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        if (state.currentReportPage > 3) pages.push('...');
+        
+        let start = Math.max(2, state.currentReportPage - 1);
+        let end = Math.min(totalPages - 1, state.currentReportPage + 1);
+        
+        if (state.currentReportPage === 1) end = 3;
+        if (state.currentReportPage === totalPages) start = totalPages - 2;
+        
+        for (let i = start; i <= end; i++) {
+            pages.push(i);
+        }
+        
+        if (state.currentReportPage < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
     }
+
+    pages.forEach(p => {
+        if (p === '...') {
+            html += `<span class="pagination-dots">...</span>`;
+        } else {
+            html += `
+                <button class="pagination-btn ${p === state.currentReportPage ? 'active' : ''}" onclick="changeReportPage(${p})">
+                    ${p}
+                </button>
+            `;
+        }
+    });
 
     html += `
         </div>
         <button class="pagination-btn" ${state.currentReportPage === totalPages ? 'disabled' : ''} onclick="changeReportPage(${state.currentReportPage + 1})">
-            Next <i class="fas fa-chevron-right"></i>
+            Próximo <i class="fas fa-chevron-right"></i>
         </button>
     `;
 
