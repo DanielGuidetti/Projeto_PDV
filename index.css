@@ -814,6 +814,8 @@ nav#sidebar.hidden { display: none; }
     position: relative;
     width: 100%;
     max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
     transform: scale(0.95);
     transition: transform var(--transition-bounce);
     padding: 2rem;
