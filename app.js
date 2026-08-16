@@ -167,13 +167,13 @@ const loadData = async () => {
         const { data: produtos } = await _supabase.from('produtos').select('*');
         if (produtos) state.products = produtos;
         
-        const { data: vendas } = await _supabase.from('vendas').select('*');
+        const { data: vendas } = await _supabase.from('vendas').select('*').order('id', { ascending: false }).limit(5000);
         if (vendas) state.sales = vendas;
 
-        const { data: movs } = await _supabase.from('movimentacoes').select('*');
+        const { data: movs } = await _supabase.from('movimentacoes').select('*').order('id', { ascending: false }).limit(5000);
         if (movs) state.movimentacoes = movs;
 
-        const { data: recs } = await _supabase.from('receitas').select('*');
+        const { data: recs } = await _supabase.from('receitas').select('*').order('id', { ascending: false }).limit(5000);
         if (recs) state.receitas = recs;
     } catch (e) {
         console.error('Erro ao carregar dados do Supabase:', e);
