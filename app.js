@@ -1681,9 +1681,10 @@ const renderOrders = async () => {
         topDebtorsContainer.innerHTML = '<p class="text-muted">Nenhum devedor registrado.</p>';
     } else {
         topDebtorsContainer.innerHTML = sortedDebtors.map(([normalized, amount]) => `
-            <div class="debtor-card">
+            <div class="debtor-card" style="cursor: pointer;" onclick="openSettleClientOrdersModal('${normalized.replace(/'/g, "\\'")}')" title="Clique para quitar encomendas deste cliente">
                 <span class="name">${toTitleCase(debtorPrettyNames[normalized])}</span>
                 <span class="amount">${formatMoney(amount)}</span>
+                <span style="font-size: 0.75rem; color: var(--accent-color); margin-top: 4px;"><i class="fas fa-check-double"></i> Quitar Tudo</span>
             </div>
         `).join('');
     }
@@ -1712,6 +1713,7 @@ const renderOrders = async () => {
                 if (!groupedOrders[normalized]) {
                     groupedOrders[normalized] = {
                         clientName: clientName,
+                        normalized: normalized,
                         orders: [],
                         totalDebt: 0,
                         totalValue: 0,
@@ -1731,13 +1733,17 @@ const renderOrders = async () => {
 
             Object.values(groupedOrders).sort((a,b) => b.totalDebt - a.totalDebt).forEach((group, index) => {
                 const containerId = `${togglePrefix}-client-orders-${index}`;
+                const safeNormalized = group.normalized.replace(/'/g, "\\'");
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td colspan="6" style="padding: 0; border-bottom: none;">
                         <div class="client-orders-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: rgba(var(--primary-color-rgb), 0.05); cursor: pointer; border-bottom: 2px solid var(--border-color);" onclick="toggleClientOrders('${containerId}')">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
                                 <strong style="font-size: 1.1rem; color: var(--text-primary);">${toTitleCase(group.clientName)}</strong>
                                 <span class="badge ${group.pendingDeliveries > 0 ? 'badge-warning' : 'badge-success'}">${group.orders.length} pedido(s)</span>
+                                <button type="button" class="btn btn-success btn-small" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" onclick="event.stopPropagation(); openSettleClientOrdersModal('${safeNormalized}')" title="Quitar e entregar todas as encomendas deste cliente">
+                                    <i class="fas fa-check-double"></i> Quitar Encomendas
+                                </button>
                             </div>
                             <div style="display: flex; align-items: center; gap: 2rem;">
                                 <div style="text-align: right;">
@@ -2051,6 +2057,164 @@ window.cancelOrder = async (orderId) => {
         }
     }
 };
+
+/* ===== Quitar Todas as Encomendas do Cliente ===== */
+let currentSettleClientNormalized = null;
+
+const resetSettleActionButtons = () => {
+    const defaultLabels = {
+        'DINHEIRO': '<i class="fas fa-money-bill-wave"></i> [1] DINHEIRO',
+        'PIX': '<i class="fab fa-pix"></i> [2] PIX',
+        'CARTÃO': '<i class="fas fa-credit-card"></i> [3] CARTÃO'
+    };
+
+    document.querySelectorAll('.btn-settle-action').forEach(btn => {
+        btn.disabled = false;
+        const method = btn.dataset.method;
+        if (defaultLabels[method]) {
+            btn.innerHTML = defaultLabels[method];
+        }
+    });
+};
+
+window.openSettleClientOrdersModal = (normalizedClient) => {
+    currentSettleClientNormalized = normalizedClient;
+
+    // Sempre resetar o estado visual dos botões antes de abrir
+    resetSettleActionButtons();
+
+    const clientOrders = (state.sales || []).filter(s => {
+        if (s.status !== 'ENCOMENDA') return false;
+        const norm = normalizeName(s.cliente || '');
+        return norm === normalizedClient;
+    });
+
+    if (clientOrders.length === 0) {
+        showToast('Nenhuma encomenda pendente para este cliente.', 'info');
+        return;
+    }
+
+    const clientName = clientOrders[0].cliente || toTitleCase(normalizedClient);
+    const totalDebt = clientOrders.reduce((sum, s) => sum + (Number(s.total) - Number(s.valor_pago || 0)), 0);
+    const hasPendingDelivery = clientOrders.some(s => s.status_entrega !== 'ENTREGUE');
+
+    document.getElementById('settle-client-name').textContent = clientName;
+    document.getElementById('settle-orders-count').textContent = `${clientOrders.length} pedido(s)`;
+    document.getElementById('settle-total-debt').textContent = formatMoney(totalDebt);
+
+    const noticeEl = document.getElementById('settle-pending-delivery-notice');
+    if (noticeEl) {
+        noticeEl.style.display = hasPendingDelivery ? 'block' : 'none';
+    }
+
+    const modal = document.getElementById('settle-client-orders-modal');
+    if (modal) modal.classList.add('active');
+};
+
+document.querySelectorAll('.close-settle-orders').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('settle-client-orders-modal')?.classList.remove('active');
+        currentSettleClientNormalized = null;
+        resetSettleActionButtons();
+    });
+});
+
+document.querySelectorAll('.btn-settle-action').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        if (!currentSettleClientNormalized) return;
+
+        const currentBtn = e.currentTarget;
+        const method = currentBtn.dataset.method;
+        const clientOrders = (state.sales || []).filter(s => {
+            if (s.status !== 'ENCOMENDA') return false;
+            return normalizeName(s.cliente || '') === currentSettleClientNormalized;
+        });
+
+        if (clientOrders.length === 0) {
+            document.getElementById('settle-client-orders-modal')?.classList.remove('active');
+            resetSettleActionButtons();
+            return;
+        }
+
+        const clientName = clientOrders[0].cliente || toTitleCase(currentSettleClientNormalized);
+
+        // Desabilitar botões durante processamento
+        const actionBtns = document.querySelectorAll('.btn-settle-action');
+        actionBtns.forEach(b => b.disabled = true);
+        currentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+
+        try {
+            const nowISO = new Date().toISOString();
+            let successOrders = 0;
+
+            for (const order of clientOrders) {
+                // 1. Processar entregas e abater estoque caso tenha itens não entregues
+                const newItens = [...order.itens];
+
+                for (let item of newItens) {
+                    const deliveredAlready = Number(item.delivered_qty || 0);
+                    const remainingToDeliver = Number(item.qty) - deliveredAlready;
+
+                    if (remainingToDeliver > 0) {
+                        const product = state.products.find(p => p.id === item.id || String(p.PLU) === String(item.PLU));
+                        if (product && product.controlar_estoque !== false) {
+                            const qtyVal = Number(remainingToDeliver.toFixed(3));
+                            const newStock = Number((product.estoque - qtyVal).toFixed(3));
+
+                            await _supabase.from('produtos').update({ estoque: newStock }).eq('id', product.id);
+
+                            await _supabase.from('movimentacoes').insert([{
+                                produto_id: product.id,
+                                tipo: 'SAÍDA',
+                                quantidade: qtyVal,
+                                motivo: `Entrega (Quitação) Encomenda #${order.id} - ${clientName}`,
+                                user_id: state.currentUser ? state.currentUser.id : null
+                            }]);
+
+                            product.estoque = newStock;
+                        }
+                        item.delivered_qty = Number(item.qty);
+                    }
+                }
+
+                // 2. Atualizar encomenda para totalmente paga e entregue (CONCLUIDA)
+                const updatePayload = {
+                    valor_pago: Number(order.total),
+                    forma_pagamento: method,
+                    status: 'CONCLUIDA',
+                    status_entrega: 'ENTREGUE',
+                    data_conclusao: nowISO,
+                    itens: newItens
+                };
+
+                const { error: updateError } = await _supabase
+                    .from('vendas')
+                    .update(updatePayload)
+                    .eq('id', order.id);
+
+                if (updateError) throw updateError;
+                successOrders++;
+            }
+
+            showToast(`Todas as ${successOrders} encomendas de ${clientName} foram quitadas e entregues!`, 'success');
+
+            document.getElementById('settle-client-orders-modal')?.classList.remove('active');
+            currentSettleClientNormalized = null;
+
+            await loadData();
+            await renderOrders();
+
+            if (typeof renderProductsTable === 'function') renderProductsTable();
+            if (typeof renderStockHistory === 'function') renderStockHistory();
+
+        } catch (err) {
+            console.error('Erro ao quitar encomendas do cliente:', err);
+            showToast('Erro ao quitar encomendas: ' + (err.message || 'Falha no banco'), 'error');
+        } finally {
+            resetSettleActionButtons();
+        }
+    });
+});
 
 /* ===== Modules: Reports ===== */
 const saleDetailsModal = document.getElementById('sale-details-modal');

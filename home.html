@@ -1058,6 +1058,54 @@
           </div>
         </div>
       </div>
+      <!-- Settle All Client Orders Modal -->
+      <div id="settle-client-orders-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card form-modal" style="max-width: 550px;">
+          <div class="modal-header">
+            <h3><i class="fas fa-check-double text-success" style="margin-right: 0.5rem;"></i> Quitar Encomendas do Cliente</h3>
+            <button class="btn-icon close-settle-orders"><i class="fas fa-times"></i></button>
+          </div>
+          <div style="padding: 1.25rem 0.5rem;">
+            <div style="text-align: center; margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-glass); border-radius: 8px; padding: 1.25rem;">
+              <span class="text-muted" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Cliente</span>
+              <h2 id="settle-client-name" style="color: var(--accent-color); margin: 0.3rem 0 1rem 0; font-size: 1.6rem;">Nome do Cliente</h2>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+                <div>
+                  <span class="text-muted" style="font-size: 0.8rem; display: block;">Encomendas Abertas</span>
+                  <strong id="settle-orders-count" style="font-size: 1.3rem;">0</strong>
+                </div>
+                <div>
+                  <span class="text-muted" style="font-size: 0.8rem; display: block;">Total Pendente</span>
+                  <strong id="settle-total-debt" class="text-danger" style="font-size: 1.3rem;">R$ 0,00</strong>
+                </div>
+              </div>
+            </div>
+
+            <div id="settle-pending-delivery-notice" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.9rem; color: #fbbf24;">
+              <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+              Existem itens com entrega pendente. Ao quitar, todos os itens serão <strong>marcados como entregues</strong> e o estoque será baixado automaticamente.
+            </div>
+
+            <p style="margin-bottom: 0.75rem; font-weight: 500; font-size: 0.95rem;">Forma de Pagamento para a Quitação:</p>
+            <div style="display: flex; gap: 0.75rem; flex-direction: column;">
+              <button type="button" class="btn btn-primary btn-large btn-settle-action" data-method="DINHEIRO">
+                <i class="fas fa-money-bill-wave"></i> [1] DINHEIRO
+              </button>
+              <button type="button" class="btn btn-success btn-large btn-settle-action" data-method="PIX">
+                <i class="fab fa-pix"></i> [2] PIX
+              </button>
+              <button type="button" class="btn btn-info btn-large btn-settle-action" data-method="CARTÃO">
+                <i class="fas fa-credit-card"></i> [3] CARTÃO
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer" style="justify-content: flex-end;">
+            <button type="button" class="btn btn-ghost close-settle-orders">Cancelar</button>
+          </div>
+        </div>
+      </div>
       <!-- Print Confirm Modal -->
       <div id="print-confirm-modal" class="modal">
         <div class="modal-backdrop"></div>
