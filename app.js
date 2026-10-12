@@ -2464,12 +2464,22 @@ const renderStockHistory = () => {
             const isPesavel = product && product.pesavel;
             const qtdStr = isPesavel ? parseFloat(m.quantidade).toFixed(3).replace('.',',') + ' kg' : m.quantidade + ' un.';
 
+            let motivoHtml = `<span class="text-muted">${m.motivo || '-'}</span>`;
+            if (m.motivo && m.motivo.toLowerCase().includes('balanço')) {
+                motivoHtml = `
+                    <span class="badge badge-warning" style="font-size: 0.75rem; margin-right: 0.4rem; padding: 0.2rem 0.5rem; vertical-align: middle;">
+                        <i class="fas fa-clipboard-check"></i> Balanço
+                    </span>
+                    <span style="color: var(--text-color); font-size: 0.9rem;">${m.motivo}</span>
+                `;
+            }
+
             tr.innerHTML = `
                 <td><span class="text-muted"><i class="far fa-clock"></i> ${formatDate(m.data_movimentacao)}</span></td>
                 <td><strong>${product ? product.nome : 'Produto Removido (' + m.produto_id + ')'}</strong></td>
                 <td><span class="${typeClass} font-weight-bold"><i class="fas ${typeIcon}"></i> ${m.tipo}</span></td>
                 <td>${qtdStr}</td>
-                <td><span class="text-muted">${m.motivo || '-'}</span></td>
+                <td>${motivoHtml}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -3178,4 +3188,298 @@ document.getElementById('import-review-form').addEventListener('submit', async (
         showToast("Erro: " + (err.message || "Falha ao cadastrar produto"), "error");
     }
 });
+
+/* ===== Balanço de Estoque (Inventário em Lote) ===== */
+window.openStockBalanceModal = () => {
+    const statusDiv = document.getElementById('stock-balance-status');
+    if (statusDiv) {
+        statusDiv.className = 'hidden';
+        statusDiv.innerHTML = '';
+    }
+    const modal = document.getElementById('stock-balance-modal');
+    if (modal) modal.classList.add('active');
+};
+
+const stockBalanceModalCloseBtn = document.querySelector('#stock-balance-modal .close-modal');
+if (stockBalanceModalCloseBtn) {
+    stockBalanceModalCloseBtn.addEventListener('click', () => {
+        document.getElementById('stock-balance-modal').classList.remove('active');
+        const fileInput = document.getElementById('stock-balance-file-input');
+        if (fileInput) fileInput.value = '';
+    });
+}
+
+window.downloadStockBalanceTemplate = () => {
+    // Filtrar apenas produtos com controle de estoque ativo
+    const activeStockProducts = (state.products || []).filter(p => p.controlar_estoque !== false);
+
+    if (activeStockProducts.length === 0) {
+        showToast("Nenhum produto cadastrado com controle de estoque ativo.", "warning");
+        return;
+    }
+
+    // Ordenar por nome para facilitar conferência
+    const sortedProducts = [...activeStockProducts].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+
+    const header = [
+        "Código (PLU)",
+        "Referência",
+        "Produto",
+        "Tipo",
+        "Estoque Atual Sistema",
+        "Estoque Contado (Balanço)"
+    ];
+
+    const rows = sortedProducts.map(p => [
+        p.PLU || '',
+        p.codigo_referencia || '',
+        p.nome || '',
+        p.pesavel ? 'Pesável (Kg)' : 'Unidade',
+        p.estoque != null ? Number(p.estoque) : 0,
+        p.estoque != null ? Number(p.estoque) : 0 // vem pré-preenchido com o estoque atual, usuário só edita onde divergir
+    ]);
+
+    const ws_data = [header, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+    // Ajustar largura visual das colunas
+    ws['!cols'] = [
+        { wch: 16 }, // Código (PLU)
+        { wch: 16 }, // Referência
+        { wch: 35 }, // Produto
+        { wch: 14 }, // Tipo
+        { wch: 22 }, // Estoque Atual Sistema
+        { wch: 26 }  // Estoque Contado (Balanço)
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Balanco_Estoque");
+
+    const dataHoje = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `Balanco_Estoque_${dataHoje}.xlsx`);
+    showToast(`Planilha de balanço gerada com ${sortedProducts.length} produtos.`, "success");
+};
+
+// Listener para importação do balanço
+const stockBalanceFileInput = document.getElementById('stock-balance-file-input');
+if (stockBalanceFileInput) {
+    stockBalanceFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const btnImport = document.getElementById('btn-import-stock-balance');
+        const btnDownload = document.getElementById('btn-download-stock-template');
+        const statusDiv = document.getElementById('stock-balance-status');
+
+        const setImportLoading = (isLoading, msg = '') => {
+            if (btnImport) {
+                btnImport.disabled = isLoading;
+                btnImport.innerHTML = isLoading ? '<i class="fas fa-spinner fa-spin"></i> Atualizando...' : '<i class="fas fa-file-import"></i> Importar Planilha';
+            }
+            if (btnDownload) btnDownload.disabled = isLoading;
+            if (statusDiv) {
+                if (isLoading) {
+                    statusDiv.className = 'glass-element';
+                    statusDiv.style.background = 'rgba(99, 102, 241, 0.15)';
+                    statusDiv.style.border = '1px solid rgba(99, 102, 241, 0.3)';
+                    statusDiv.style.color = '#fff';
+                    statusDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${msg || 'Processando balanço...'}`;
+                    statusDiv.classList.remove('hidden');
+                } else if (msg) {
+                    statusDiv.classList.remove('hidden');
+                }
+            }
+        };
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const data = evt.target.result;
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (!json || json.length < 2) {
+                    showToast("Planilha vazia ou sem dados de produtos.", "error");
+                    stockBalanceFileInput.value = '';
+                    return;
+                }
+
+                // Identificar índices das colunas pelo cabeçalho
+                const headerRow = json[0] || [];
+                let pluColIndex = -1;
+                let refColIndex = -1;
+                let newStockColIndex = -1;
+
+                headerRow.forEach((colName, idx) => {
+                    if (!colName) return;
+                    const str = colName.toString().toLowerCase().trim();
+                    if (str.includes('plu') || str.includes('código') || str.includes('codigo') || str.includes('barras')) {
+                        if (pluColIndex === -1) pluColIndex = idx;
+                    }
+                    if (str.includes('referência') || str.includes('referencia') || str.includes('ref')) {
+                        if (refColIndex === -1) refColIndex = idx;
+                    }
+                    if (str.includes('contado') || str.includes('balanço') || str.includes('balanco') || str.includes('novo estoque') || str.includes('quantidade')) {
+                        newStockColIndex = idx;
+                    }
+                });
+
+                // Fallbacks padrões se não encontrar nomes exatos
+                if (pluColIndex === -1) pluColIndex = 0;
+                if (refColIndex === -1) refColIndex = 1;
+                if (newStockColIndex === -1) {
+                    // Coluna 5 é 'Estoque Contado (Balanço)' no modelo padrão
+                    newStockColIndex = headerRow.length > 5 ? 5 : headerRow.length - 1;
+                }
+
+                const dataRows = json.slice(1);
+                const updatesToProcess = [];
+
+                for (let r = 0; r < dataRows.length; r++) {
+                    const row = dataRows[r];
+                    if (!row || row.length === 0) continue;
+
+                    const rawPlu = row[pluColIndex] != null ? row[pluColIndex].toString().trim() : '';
+                    const rawRef = row[refColIndex] != null ? row[refColIndex].toString().trim() : '';
+                    const rawStockVal = row[newStockColIndex];
+
+                    if (!rawPlu && !rawRef) continue;
+
+                    // Validar valor numérico do novo estoque
+                    if (rawStockVal === undefined || rawStockVal === null || rawStockVal === '') {
+                        continue;
+                    }
+
+                    const parsedStock = parseFloat(String(rawStockVal).replace(',', '.'));
+                    if (isNaN(parsedStock) || parsedStock < 0) {
+                        continue;
+                    }
+
+                    // Localizar produto correspondente
+                    const product = state.products.find(p => {
+                        if (rawPlu && String(p.PLU).trim() === rawPlu) return true;
+                        if (rawRef && p.codigo_referencia && String(p.codigo_referencia).trim().toLowerCase() === rawRef.toLowerCase()) return true;
+                        return false;
+                    });
+
+                    if (product && product.controlar_estoque !== false) {
+                        const currentStock = Number(product.estoque || 0);
+                        const newStock = Number(parsedStock.toFixed(3));
+                        const diff = Number((newStock - currentStock).toFixed(3));
+
+                        updatesToProcess.push({
+                            product,
+                            currentStock,
+                            newStock,
+                            diff
+                        });
+                    }
+                }
+
+                if (updatesToProcess.length === 0) {
+                    showToast("Nenhum produto correspondente com controle de estoque ativo foi encontrado na planilha.", "warning");
+                    stockBalanceFileInput.value = '';
+                    return;
+                }
+
+                // Filtrar apenas produtos cuja quantidade realmente divergiu para otimizar updates
+                const divergentUpdates = updatesToProcess.filter(u => Math.abs(u.diff) > 0.0001);
+
+                if (divergentUpdates.length === 0) {
+                    showToast("Todos os produtos da planilha já estão com o estoque igual ao sistema. Nenhuma alteração necessária.", "info");
+                    stockBalanceFileInput.value = '';
+                    return;
+                }
+
+                setImportLoading(true, `Ajustando ${divergentUpdates.length} produtos...`);
+
+                let successCount = 0;
+                let errorCount = 0;
+
+                // Processar atualizações em lotes controlados
+                for (let i = 0; i < divergentUpdates.length; i++) {
+                    const item = divergentUpdates[i];
+                    try {
+                        // 1. Atualizar estoque na tabela produtos
+                        const { error: prodError } = await _supabase
+                            .from('produtos')
+                            .update({ estoque: item.newStock })
+                            .eq('id', item.product.id);
+
+                        if (prodError) throw prodError;
+
+                        // 2. Registrar movimentação de balanço/auditoria
+                        const movTipo = item.diff > 0 ? 'ENTRADA' : 'SAÍDA';
+                        const movQty = Math.abs(item.diff);
+                        const unitSuffix = item.product.pesavel ? ' kg' : ' un.';
+                        const movMotivo = `Ajustado por balanço (${item.currentStock}${unitSuffix} ➔ ${item.newStock}${unitSuffix})`;
+
+                        const { data: movData, error: movError } = await _supabase
+                            .from('movimentacoes')
+                            .insert([{
+                                produto_id: item.product.id,
+                                tipo: movTipo,
+                                quantidade: movQty,
+                                motivo: movMotivo,
+                                user_id: state.currentUser ? state.currentUser.id : null
+                            }])
+                            .select();
+
+                        if (!movError && movData && movData.length > 0) {
+                            state.movimentacoes.push(movData[0]);
+                        }
+
+                        // 3. Atualizar produto no estado local
+                        item.product.estoque = item.newStock;
+                        successCount++;
+                    } catch (err) {
+                        console.error("Erro ao atualizar estoque do produto:", item.product.nome, err);
+                        errorCount++;
+                    }
+
+                    if (i % 5 === 0 || i === divergentUpdates.length - 1) {
+                        setImportLoading(true, `Processado ${i + 1} de ${divergentUpdates.length}...`);
+                    }
+                }
+
+                // Atualizar tabelas na tela
+                if (typeof renderProductsTable === 'function') renderProductsTable();
+                if (typeof renderStockHistory === 'function') renderStockHistory();
+
+                setImportLoading(false);
+                stockBalanceFileInput.value = '';
+
+                if (errorCount > 0) {
+                    showToast(`Balanço concluído: ${successCount} produtos ajustados com sucesso e ${errorCount} erros.`, "warning");
+                } else {
+                    showToast(`Balanço concluído com sucesso! ${successCount} produtos atualizados.`, "success");
+                }
+
+                if (statusDiv) {
+                    statusDiv.className = 'glass-element';
+                    statusDiv.style.background = 'rgba(16, 185, 129, 0.15)';
+                    statusDiv.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                    statusDiv.style.color = '#10b981';
+                    statusDiv.innerHTML = `<i class="fas fa-check-circle"></i> Balanço finalizado! <strong>${successCount}</strong> produtos ajustados.`;
+                    statusDiv.classList.remove('hidden');
+                }
+
+                setTimeout(() => {
+                    const modal = document.getElementById('stock-balance-modal');
+                    if (modal) modal.classList.remove('active');
+                }, 2000);
+
+            } catch (err) {
+                console.error("Erro ao processar balanço:", err);
+                setImportLoading(false);
+                stockBalanceFileInput.value = '';
+                showToast("Erro ao processar o arquivo de balanço.", "error");
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+}
 

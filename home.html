@@ -753,6 +753,48 @@
               <h3>Importar Planilha</h3>
               <p class="text-muted">Cadastre produtos em lote via arquivo Excel (.xlsx)</p>
             </div>
+            <div class="glass-card" style="padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s;" onclick="openStockBalanceModal()">
+              <div style="font-size: 3rem; color: #f59e0b; margin-bottom: 1rem;"><i class="fas fa-clipboard-check"></i></div>
+              <h3>Balanço de Estoque</h3>
+              <p class="text-muted">Baixar modelo com seus produtos ou importar contagem de estoque</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stock Balance Modal -->
+        <div id="stock-balance-modal" class="modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content glass-card form-modal" style="max-width: 600px;">
+            <div class="modal-header">
+              <h3><i class="fas fa-clipboard-check text-warning" style="margin-right: 0.5rem;"></i> Balanço de Estoque</h3>
+              <button class="btn-icon close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="padding: 1.25rem;">
+              <p style="margin-bottom: 1rem; color: var(--text-color); font-size: 0.95rem; line-height: 1.5;">
+                O balanço permite auditar e atualizar o estoque físico de todos os seus produtos cadastrados que possuem <strong>controle de estoque ativo</strong>.
+              </p>
+              
+              <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-color);"><i class="fas fa-info-circle"></i> Como funciona:</h4>
+                <ol style="padding-left: 1.25rem; font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; margin: 0;">
+                  <li>Baixe a <strong>planilha modelo</strong> já preenchida com todos os seus produtos controlados.</li>
+                  <li>Preencha apenas a coluna <strong>"Estoque Contado (Balanço)"</strong> com a quantidade física apurada.</li>
+                  <li>Importe a planilha e o estoque de todos os produtos será ajustado automaticamente no sistema, gerando movimentação de balanço/auditoria.</li>
+                </ol>
+              </div>
+
+              <div id="stock-balance-status" class="hidden" style="margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; text-align: center;"></div>
+
+              <div style="display: flex; gap: 1rem; justify-content: flex-end; flex-wrap: wrap;">
+                <button type="button" class="btn btn-ghost" id="btn-download-stock-template" onclick="downloadStockBalanceTemplate()">
+                  <i class="fas fa-download"></i> Baixar Planilha Modelo
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-import-stock-balance" onclick="document.getElementById('stock-balance-file-input').click()">
+                  <i class="fas fa-file-import"></i> Importar Planilha
+                </button>
+                <input type="file" id="stock-balance-file-input" accept=".xlsx, .xls" style="display: none;">
+              </div>
+            </div>
           </div>
         </div>
 
