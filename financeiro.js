@@ -22,7 +22,9 @@ const formatDate = (date) => new Intl.DateTimeFormat('pt-BR', {
 const appState = {
     currentUser: null,
     vendas: [],
-    transacoes: []
+    transacoes: [],
+    extrato: [],
+    currentPage: 1
 };
 
 // Obter usuário da sessão
@@ -100,8 +102,11 @@ const loadData = async () => {
             const startDate = new Date(year, month - 1, 1).toISOString();
             const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
             
-            vendasQuery = vendasQuery.gte('data', startDate).lte('data', endDate);
-            transQuery = transQuery.gte('data', startDate).lte('data', endDate);
+            vendasQuery = vendasQuery.gte('data', startDate).lte('data', endDate).order('id', { ascending: false }).limit(5000);
+            transQuery = transQuery.gte('data', startDate).lte('data', endDate).order('id', { ascending: false }).limit(5000);
+        } else {
+            vendasQuery = vendasQuery.order('id', { ascending: false }).limit(5000);
+            transQuery = transQuery.order('id', { ascending: false }).limit(5000);
         }
 
         const [vendasRes, transRes] = await Promise.all([vendasQuery, transQuery]);
@@ -177,6 +182,7 @@ const renderDashboard = () => {
 
     // Ordenar do mais recente pro mais antigo
     extrato.sort((a, b) => b.dataOrig - a.dataOrig);
+    appState.extrato = extrato;
 
     const saldoLiquido = totalVendas + totalReceitasExtras - totalDespesas;
 
@@ -189,43 +195,7 @@ const renderDashboard = () => {
     saldoEl.textContent = formatMoney(saldoLiquido);
     saldoEl.style.color = saldoLiquido >= 0 ? '#fff' : '#f87171'; // vermelho se no vermelho mesmo
 
-    tbody.innerHTML = '';
-    if (extrato.length === 0) {
-        emptyMsg.classList.remove('hidden');
-        tbody.parentElement.classList.add('hidden');
-    } else {
-        emptyMsg.classList.add('hidden');
-        tbody.parentElement.classList.remove('hidden');
-
-        extrato.forEach(mov => {
-            const tr = document.createElement('tr');
-            let badgeClass = '';
-            let signal = '';
-            let valColor = '';
-
-            if (mov.tipo === 'venda') {
-                 badgeClass = 'badge-venda';
-                 signal = '+';
-                 valColor = 'text-info';
-            } else if (mov.tipo === 'receita') {
-                 badgeClass = 'badge-receita';
-                 signal = '+';
-                 valColor = 'text-success';
-            } else if (mov.tipo === 'despesa') {
-                 badgeClass = 'badge-despesa';
-                 signal = '-';
-                 valColor = 'text-danger';
-            }
-
-            tr.innerHTML = `
-                <td><span class="text-muted">${formatDate(mov.data)}</span></td>
-                <td><span class="badge ${badgeClass}">${mov.classificacao}</span></td>
-                <td><strong>${mov.descricao}</strong></td>
-                <td class="text-right"><strong class="${valColor}">${signal} ${formatMoney(mov.valor)}</strong></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
+    renderFinanceTable();
 
     // --- TAB DESPESAS: Gráfico & Top Gastos ---
     const chartContainer = document.getElementById('expenses-chart-container');
@@ -360,10 +330,141 @@ const renderDashboard = () => {
     document.getElementById('dre-lucro').style.color = lucroFinal < 0 ? 'var(--danger-color)' : 'var(--success-color)';
 };
 
+const renderFinanceTable = () => {
+    const tbody = document.getElementById('finance-table-body');
+    const emptyMsg = document.getElementById('empty-finance-msg');
+    const paginationContainer = document.getElementById('finance-pagination');
+
+    tbody.innerHTML = '';
+
+    if (!appState.extrato || appState.extrato.length === 0) {
+        emptyMsg.classList.remove('hidden');
+        tbody.parentElement.classList.add('hidden');
+        if (paginationContainer) paginationContainer.innerHTML = '';
+        return;
+    }
+
+    emptyMsg.classList.add('hidden');
+    tbody.parentElement.classList.remove('hidden');
+
+    const itemsPerPage = 15;
+    const totalPages = Math.ceil(appState.extrato.length / itemsPerPage);
+    
+    // Garantir página válida
+    if (appState.currentPage > totalPages) appState.currentPage = totalPages;
+    if (appState.currentPage < 1) appState.currentPage = 1;
+
+    const startIdx = (appState.currentPage - 1) * itemsPerPage;
+    const pageItems = appState.extrato.slice(startIdx, startIdx + itemsPerPage);
+
+    pageItems.forEach(mov => {
+        const tr = document.createElement('tr');
+        let badgeClass = '';
+        let signal = '';
+        let valColor = '';
+
+        if (mov.tipo === 'venda') {
+             badgeClass = 'badge-venda';
+             signal = '+';
+             valColor = 'text-info';
+        } else if (mov.tipo === 'receita') {
+             badgeClass = 'badge-receita';
+             signal = '+';
+             valColor = 'text-success';
+        } else if (mov.tipo === 'despesa') {
+             badgeClass = 'badge-despesa';
+             signal = '-';
+             valColor = 'text-danger';
+        }
+
+        tr.innerHTML = `
+            <td><span class="text-muted"><i class="far fa-clock"></i> ${formatDate(mov.data)}</span></td>
+            <td><span class="badge ${badgeClass}">${mov.classificacao}</span></td>
+            <td><strong>${mov.descricao}</strong></td>
+            <td class="text-right"><strong class="${valColor}">${signal} ${formatMoney(mov.valor)}</strong></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    renderFinancePagination(totalPages);
+};
+
+const renderFinancePagination = (totalPages) => {
+    const container = document.getElementById('finance-pagination');
+    if (!container) return;
+
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = `
+        <button class="pagination-btn" ${appState.currentPage === 1 ? 'disabled' : ''} onclick="changeFinancePage(${appState.currentPage - 1})">
+            <i class="fas fa-chevron-left"></i> Anterior
+        </button>
+        <div class="pagination-numbers">
+    `;
+
+    let pages = [];
+    if (totalPages <= 5) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        if (appState.currentPage > 3) pages.push('...');
+        
+        let start = Math.max(2, appState.currentPage - 1);
+        let end = Math.min(totalPages - 1, appState.currentPage + 1);
+        
+        if (appState.currentPage === 1) end = 3;
+        if (appState.currentPage === totalPages) start = totalPages - 2;
+        
+        for (let i = start; i <= end; i++) {
+            pages.push(i);
+        }
+        
+        if (appState.currentPage < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+    }
+
+    pages.forEach(p => {
+        if (p === '...') {
+            html += `<span class="pagination-dots">...</span>`;
+        } else {
+            html += `
+                <button class="pagination-btn ${p === appState.currentPage ? 'active' : ''}" onclick="changeFinancePage(${p})">
+                    ${p}
+                </button>
+            `;
+        }
+    });
+
+    html += `
+        </div>
+        <button class="pagination-btn" ${appState.currentPage === totalPages ? 'disabled' : ''} onclick="changeFinancePage(${appState.currentPage + 1})">
+            Próximo <i class="fas fa-chevron-right"></i>
+        </button>
+    `;
+
+    container.innerHTML = html;
+};
+
+window.changeFinancePage = (page) => {
+    appState.currentPage = page;
+    renderFinanceTable();
+    const tableEl = document.getElementById('finance-table-body');
+    if (tableEl) {
+        tableEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+};
+
 // Filter Events
-document.getElementById('btn-filter').addEventListener('click', loadData);
+document.getElementById('btn-filter').addEventListener('click', () => {
+    appState.currentPage = 1;
+    loadData();
+});
 document.getElementById('btn-clear-filter').addEventListener('click', () => {
     document.getElementById('filter-month').value = '';
+    appState.currentPage = 1;
     loadData();
 });
 
